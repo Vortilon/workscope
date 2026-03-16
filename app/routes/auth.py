@@ -1,4 +1,4 @@
-"""Authentication: CTA-style login for Noteify MPD."""
+"""Authentication: CTA-style login for Scopewrath."""
 from pathlib import Path
 
 from fastapi import APIRouter, Request, Form

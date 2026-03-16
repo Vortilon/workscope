@@ -1,4 +1,4 @@
-# Noteify MPD / Workscope Analyzer
+# Scopewrath
 
 Production-ready MVP for **aircraft maintenance workscope validation** against manufacturer MPDs (Maintenance Planning Documents).
 

@@ -1,5 +1,5 @@
 """
-Noteify MPD / Workscope Analyzer – production-ready MVP.
+Scopewrath – production-ready MVP.
 FastAPI + Jinja/HTMX/Alpine + SQLite (upgradeable to Postgres).
 """
 from pathlib import Path
@@ -11,7 +11,7 @@ from app.config import BASE_DIR
 from app.database import get_db
 from app.routes import web, api, evidence, auth
 
-app = FastAPI(title="Noteify MPD / Workscope Analyzer")
+app = FastAPI(title="Scopewrath")
 
 # Static assets (local copy of DAE logo etc.)
 static_dir = BASE_DIR / "app" / "static"
@@ -38,4 +38,4 @@ def health():
 
 @app.get("/api")
 def api_info():
-    return {"message": "Noteify MPD – MPD vs workscope analysis", "docs": "/docs"}
+    return {"message": "Scopewrath – MPD vs workscope analysis", "docs": "/docs"}
