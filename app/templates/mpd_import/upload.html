@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Import MPD – Upload{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-4 mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Import MPD</h1>
+    <p class="mt-1 text-gray-500 dark:text-gray-400">Upload the manufacturer MPD Excel, then select sheets and columns.</p>
+  </div>
+  {% if error %}
+  <div class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+    {{ error }}
+  </div>
+  {% endif %}
+</div>
+
+<form action="/mpd/import/upload" method="post" enctype="multipart/form-data" class="space-y-6 max-w-2xl">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div>
+      <label for="manufacturer" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Manufacturer</label>
+      <select id="manufacturer" name="manufacturer" required
+              class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        <option value="">Select…</option>
+        <option value="Airbus" {% if manufacturer == "Airbus" %}selected{% endif %}>Airbus</option>
+        <option value="Boeing" {% if manufacturer == "Boeing" %}selected{% endif %}>Boeing</option>
+        <option value="ATR" {% if manufacturer == "ATR" %}selected{% endif %}>ATR</option>
+        <option value="Other" {% if manufacturer == "Other" %}selected{% endif %}>Other</option>
+      </select>
+    </div>
+    <div>
+      <label for="model" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Model</label>
+      <input id="model" name="model" type="text" required
+             value="{{ model or '' }}"
+             placeholder="e.g. A320, 737-800, ATR72"
+             class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    </div>
+    <div>
+      <label for="revision" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Revision</label>
+      <input id="revision" name="revision" type="text" required
+             value="{{ revision or '' }}"
+             placeholder="e.g. R50, R37"
+             class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    </div>
+  </div>
+
+  <div>
+    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Excel file (.xlsx)</label>
+    <label for="file"
+           class="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 dark:bg-gray-800 dark:border-gray-600 dark:hover:bg-gray-700">
+      <div class="text-center">
+        <p class="text-sm text-gray-700 dark:text-gray-200">Drop file here or <span class="font-semibold text-dae">browse</span></p>
+        <p class="mt-1 text-xs text-gray-400">Only .xlsx is supported for now.</p>
+      </div>
+      <input id="file" name="file" type="file" accept=".xlsx" class="hidden" required>
+    </label>
+  </div>
+
+  <div class="flex gap-3">
+    <button type="submit"
+            class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90 focus:ring-4 focus:ring-dae/50">
+      Continue
+    </button>
+    <a href="/mpd" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
+      Cancel
+    </a>
+  </div>
+</form>
+{% endblock %}
+

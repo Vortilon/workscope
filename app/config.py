@@ -11,8 +11,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 UPLOAD_DIR = BASE_DIR / "data" / "uploads"
 MPD_STORAGE = BASE_DIR / "data" / "mpd"
 REPORT_DIR = BASE_DIR / "data" / "reports"
+IMPORT_TEMP_DIR = UPLOAD_DIR / "import_temp"
 # Ensure dirs exist at runtime
-for d in (UPLOAD_DIR, MPD_STORAGE, REPORT_DIR):
+for d in (UPLOAD_DIR, MPD_STORAGE, REPORT_DIR, IMPORT_TEMP_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
 # Database: SQLite for MVP; set DATABASE_URL for Postgres (e.g. postgresql+asyncpg://...)

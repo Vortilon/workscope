@@ -10,7 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import BASE_DIR
 from app.database import get_db
-from app.routes import web, api, evidence, auth, admin
+from app.routes import web, api, evidence, auth, admin, mpd_import_routes
 from app.auth import ensure_admin_seed
 
 
@@ -37,6 +37,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(web.router)
+app.include_router(mpd_import_routes.router)
 app.include_router(api.router)
 app.include_router(evidence.router)
 

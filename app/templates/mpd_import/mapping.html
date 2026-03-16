@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Import MPD – Column mapping{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Import MPD</h1>
+  <p class="mt-1 text-gray-500 dark:text-gray-400">
+    Map your Excel columns to Scopewrath fields for each selected sheet.
+  </p>
+</div>
+
+<form action="/mpd/import/run" method="post" class="space-y-8">
+  {% for sheet in sheets_with_headers %}
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700">
+    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Sheet: {{ sheet.name }}</h2>
+        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Index {{ sheet.index }}, first row used as header.</p>
+      </div>
+    </div>
+    <div class="p-4 overflow-x-auto">
+      <table class="min-w-full text-xs text-left text-gray-500 dark:text-gray-400">
+        <thead>
+          <tr>
+            <th class="px-2 py-2 w-40 text-gray-700 dark:text-gray-300">Scopewrath field</th>
+            <th class="px-2 py-2 w-56 text-gray-700 dark:text-gray-300">Excel column</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for label, key in standard_fields %}
+          <tr class="border-t border-gray-100 dark:border-gray-700">
+            <td class="px-2 py-1.5 text-gray-900 dark:text-white">
+              {{ label }}
+            </td>
+            <td class="px-2 py-1.5">
+              <select name="map_{{ sheet.index }}_{{ key }}"
+                      class="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="__skip__">Skip</option>
+                {% for h in sheet.headers %}
+                {% set idx = loop.index0 %}
+                <option value="{{ idx }}"
+                        {% if sheet.suggested.get(key) == idx %}selected{% endif %}>
+                  {{ h }}
+                </option>
+                {% endfor %}
+              </select>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="flex gap-3">
+    <a href="/mpd/import/sheets" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
+      Back
+    </a>
+    <button type="submit"
+            class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90 focus:ring-4 focus:ring-dae/50">
+      Run import
+    </button>
+  </div>
+</form>
+{% endblock %}
+

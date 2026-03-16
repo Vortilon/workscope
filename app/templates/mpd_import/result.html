@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Import MPD – Result{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">MPD import result</h1>
+  <p class="mt-1 text-gray-500 dark:text-gray-400">
+    Manufacturer: {{ result.manufacturer }} ·
+    Model: {{ result.model }} ·
+    Revision: {{ result.revision }}
+  </p>
+  <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+    <span class="font-semibold">{{ result.total }}</span> tasks imported across
+    <span class="font-semibold">{{ result.results|length }}</span> sheet(s).
+  </p>
+</div>
+
+<div class="space-y-4">
+  {% for sheet in result.results %}
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700">
+    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Sheet: {{ sheet.sheet_name }}</h2>
+        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+          Imported {{ sheet.count }} tasks{% if sheet.errors and sheet.errors|length > 0 %}, {{ sheet.errors|length }} rows skipped{% endif %}.
+        </p>
+      </div>
+    </div>
+    {% if sheet.errors and sheet.errors|length > 0 %}
+    <div class="p-4">
+      <h3 class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Skipped rows</h3>
+      <ul class="text-xs text-gray-500 dark:text-gray-400 list-disc list-inside space-y-0.5 max-h-40 overflow-y-auto">
+        {% for e in sheet.errors %}
+        <li>Row {{ e.row }} – {{ e.message }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<div class="mt-6 flex gap-3">
+  <a href="/mpd" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90 focus:ring-4 focus:ring-dae/50">
+    Back to MPD library
+  </a>
+</div>
+{% endblock %}
+

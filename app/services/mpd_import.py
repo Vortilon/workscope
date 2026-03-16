@@ -1,14 +1,84 @@
 """
 MPD import: parse Excel (and later PDF), create MPDDataset + MPDTask.
 Preserve raw values; create normalized interval and applicability.
+Multi-step UI: upload → sheet selection → column mapping → run import.
 """
 from __future__ import annotations
 from pathlib import Path
+from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.mpd import MPDDataset, MPDTask
 from app.services.normalize import normalize_interval_raw, normalize_applicability_tokens
+
+# Standard fields shown in column-mapping UI (label, our key)
+STANDARD_FIELDS = [
+    ("Task reference", "task_reference"),
+    ("Title", "title"),
+    ("Description", "description"),
+    ("Threshold", "threshold"),
+    ("Interval", "interval"),
+    ("Effectivity", "effectivity"),
+    ("Job procedure", "job_procedure"),
+    ("Zone", "zone"),
+    ("MH Zone", "zone_mh"),
+    ("Man", "man"),
+    ("Access", "access"),
+    ("MH Access", "access_mh"),
+    ("MH Preparation", "preparation_mh"),
+    ("Skill", "skill"),
+    ("Equipment", "equipment"),
+    ("Section", "section"),
+    ("Chapter", "chapter"),
+]
+
+# Manufacturer default sheet names (first match wins)
+DEFAULT_SHEETS = {
+    "ATR": ["MPDTasks"],
+    "Airbus": ["MPD"],
+    "Boeing": [
+        "SYSTEMS AND POWERPLANT MAINTENA",  # partial match
+        "STRUCTURAL MAINTENANCE PROGRAM",
+        "ZONAL INSPECTION PROGRAM",
+    ],
+}
+
+
+def get_workbook_sheets(file_path: Path) -> list[dict[str, Any]]:
+    """Return list of {index, name} for all sheets. Uses openpyxl."""
+    import openpyxl
+    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    out = [{"index": i, "name": s.title} for i, s in enumerate(wb.worksheets)]
+    wb.close()
+    return out
+
+
+def get_sheet_headers(file_path: Path, sheet_index: int, header_row_index: int = 0) -> list[str]:
+    """Return first row of the sheet as column headers (strings)."""
+    import openpyxl
+    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    sheet = wb.worksheets[sheet_index]
+    rows = list(sheet.iter_rows(values_only=True))
+    wb.close()
+    if not rows:
+        return []
+    return [str(c).strip() if c is not None else f"Col{i}" for i, c in enumerate(rows[header_row_index])]
+
+
+def get_default_sheet_indices(sheet_names: list[str], manufacturer: str) -> list[int]:
+    """Return list of sheet indices to select by default for this manufacturer."""
+    candidates = DEFAULT_SHEETS.get(manufacturer, [])
+    indices = []
+    for i, name in enumerate(sheet_names):
+        name_upper = name.upper()
+        for c in candidates:
+            if c.upper() in name_upper:
+                indices.append(i)
+                break
+    if not indices and sheet_names:
+        indices = [0]
+    return indices
 
 
 async def create_dataset(
@@ -117,3 +187,96 @@ async def set_dataset_done(session: AsyncSession, dataset_id: int) -> None:
     ds = (await session.execute(select(MPDDataset).where(MPDDataset.id == dataset_id))).scalars().one_or_none()
     if ds:
         ds.parsed_status = "done"
+
+
+def _get_mapped_val(row: list, col_index: int | None) -> str:
+    if col_index is None or col_index < 0 or col_index >= len(row):
+        return ""
+    val = row[col_index]
+    if hasattr(val, "strip"):
+        return (val.strip() or "") if val else ""
+    return str(val) if val is not None else ""
+
+
+def import_mpd_excel_with_mapping(
+    session: AsyncSession,
+    dataset_id: int,
+    file_path: Path,
+    sheet_configs: list[dict[str, Any]],
+) -> tuple[int, list[dict[str, Any]]]:
+    """
+    sheet_configs: list of {sheet_index, header_row_index, column_map}.
+    column_map: dict our_field -> col_index (0-based).
+    Returns (total_task_count, list of {sheet_name, count, errors: [row, message]}).
+    """
+    import openpyxl
+    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    total = 0
+    results = []
+    for cfg in sheet_configs:
+        sheet_idx = cfg.get("sheet_index", 0)
+        header_row = cfg.get("header_row_index", 0)
+        column_map = cfg.get("column_map") or {}
+        sheet_name = wb.worksheets[sheet_idx].title
+        sheet = wb.worksheets[sheet_idx]
+        rows = list(sheet.iter_rows(values_only=True))
+        if not rows:
+            results.append({"sheet_name": sheet_name, "count": 0, "errors": []})
+            continue
+        headers = [str(c).strip() if c is not None else f"Col{i}" for i, c in enumerate(rows[header_row])]
+        # Map our field keys to column indices
+        def col(field_key: str) -> int | None:
+            if field_key in column_map:
+                return column_map[field_key]
+            return None
+
+        count = 0
+        errors = []
+        for idx in range(header_row + 1, len(rows)):
+            row = list(rows[idx])
+            try:
+                task_ref = _get_mapped_val(row, col("task_reference")) or _get_mapped_val(row, col("title"))
+                threshold_raw = _get_mapped_val(row, col("threshold"))
+                interval_raw = _get_mapped_val(row, col("interval"))
+                applicability_raw = _get_mapped_val(row, col("effectivity"))
+                th_norm, th_json = normalize_interval_raw(threshold_raw or None)
+                int_norm, int_json = normalize_interval_raw(interval_raw or None)
+                tokens = normalize_applicability_tokens(applicability_raw or None)
+                applicability_tokens_normalized = ",".join(tokens) if tokens else None
+
+                task = MPDTask(
+                    dataset_id=dataset_id,
+                    task_reference=task_ref or None,
+                    task_number=task_ref or None,
+                    task_code=task_ref or None,
+                    title=_get_mapped_val(row, col("title")) or None,
+                    description=_get_mapped_val(row, col("description")) or None,
+                    section=_get_mapped_val(row, col("section")) or None,
+                    chapter=_get_mapped_val(row, col("chapter")) or None,
+                    threshold_raw=threshold_raw or None,
+                    interval_raw=interval_raw or None,
+                    threshold_normalized=th_norm or None,
+                    interval_normalized=int_norm or None,
+                    interval_json=int_json or th_json,
+                    applicability_raw=applicability_raw or None,
+                    applicability_tokens_normalized=applicability_tokens_normalized,
+                    job_procedure=_get_mapped_val(row, col("job_procedure")) or None,
+                    zones=_get_mapped_val(row, col("zone")) or None,
+                    zone_mh=_get_mapped_val(row, col("zone_mh")) or None,
+                    man=_get_mapped_val(row, col("man")) or None,
+                    access_items=_get_mapped_val(row, col("access")) or None,
+                    access_mh=_get_mapped_val(row, col("access_mh")) or None,
+                    preparation_mh=_get_mapped_val(row, col("preparation_mh")) or None,
+                    skill=_get_mapped_val(row, col("skill")) or None,
+                    equipment=_get_mapped_val(row, col("equipment")) or None,
+                    row_index=idx,
+                    extra_raw={h: _get_mapped_val(row, i) for i, h in enumerate(headers) if i < len(row)},
+                )
+                session.add(task)
+                count += 1
+                total += 1
+            except Exception as e:
+                errors.append({"row": idx + 1, "message": str(e)})
+        results.append({"sheet_name": sheet_name, "count": count, "errors": errors})
+    wb.close()
+    return total, results

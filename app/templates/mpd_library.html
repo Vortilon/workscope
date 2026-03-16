@@ -6,7 +6,13 @@
     <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">MPD Library</h1>
     <p class="mt-1 text-gray-500 dark:text-gray-400">Manufacturer MPD datasets by model and revision.</p>
   </div>
-  <p class="text-sm text-gray-500">Upload via API: <code class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">POST /api/mpd/upload</code> (manufacturer, model, revision, file)</p>
+  <div class="flex flex-col sm:items-end gap-2 text-sm text-gray-500">
+    <p>Upload via API: <code class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">POST /api/mpd/upload</code></p>
+    <a href="/mpd/import"
+       class="inline-flex items-center px-3 py-1.5 rounded-md border border-dae text-xs font-medium text-dae bg-white hover:bg-red-50">
+      Import MPD from Excel
+    </a>
+  </div>
 </div>
 
 <div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700 overflow-hidden">
