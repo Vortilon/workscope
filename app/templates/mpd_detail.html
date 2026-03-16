@@ -7,7 +7,7 @@
       {{ dataset.manufacturer }} {{ dataset.model }} – {{ dataset.revision }}
     </h1>
     <p class="mt-1 text-gray-500 dark:text-gray-400 text-sm">
-      {{ tasks|length }} of {{ dataset.tasks|length if dataset.tasks is defined else 'many' }} tasks shown (first 200).
+      Showing {{ tasks|length }} tasks (first 200).
     </p>
   </div>
   <a href="/mpd"
