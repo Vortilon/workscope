@@ -4,6 +4,7 @@ uvicorn[standard]
 python-dotenv
 python-multipart
 itsdangerous
+passlib[bcrypt]
 
 # DB
 sqlalchemy>=2.0

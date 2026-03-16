@@ -28,7 +28,7 @@ source .venv/bin/activate   # or .venv\Scripts\activate on Windows
 pip install -r requirements.txt
 cp .env.example .env
 # Edit .env: PORT, optional GROK_API_KEY / OPENAI_API_KEY
-alembic upgrade head
+alembic upgrade head   # or: python -m alembic upgrade head
 uvicorn main:app --reload --port 8084
 ```
 
@@ -36,10 +36,15 @@ Open http://localhost:8084 (web UI) and http://localhost:8084/docs (API).
 
 ## Docker
 
+The container **runs migrations on startup** (see `entrypoint.sh`), so no separate migration step is needed.
+
 ```bash
 docker compose up -d --build
 # App on port 8084
 ```
+
+To run migrations only (e.g. in CI or manually):  
+`docker compose run --rm app python -m alembic upgrade head`
 
 ## Environment
 

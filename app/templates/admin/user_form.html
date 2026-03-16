@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{% if user %}Edit user{% else %}Add user{% endif %} – Scopewrath{% endblock %}
+{% block content %}
+<div class="max-w-xl">
+  <h1 class="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
+    {% if user %}Edit user{% else %}Add user{% endif %}
+  </h1>
+  {% if error %}
+  <div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">{{ error }}</div>
+  {% endif %}
+  <form method="post" action="{% if user %}/admin/users/{{ user.id }}{% else %}/admin/users{% endif %}" class="space-y-4">
+    <div>
+      <label for="username" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
+      <input id="username" name="username" type="text" required
+             value="{{ username or (user.username if user else '') }}"
+             class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    </div>
+    <div>
+      <label for="first_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">First name</label>
+      <input id="first_name" name="first_name" type="text" required
+             value="{{ first_name or (user.first_name if user else '') }}"
+             class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    </div>
+    <div>
+      <label for="last_name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Last name</label>
+      <input id="last_name" name="last_name" type="text" required
+             value="{{ last_name or (user.last_name if user else '') }}"
+             class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    </div>
+    <div>
+      <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
+      <input id="email" name="email" type="email" required
+             value="{{ email or (user.email if user else '') }}"
+             class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    </div>
+    {% if not user %}
+    <div>
+      <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+      <input id="password" name="password" type="password" required minlength="8"
+             class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+             placeholder="At least 8 characters">
+    </div>
+    {% endif %}
+    <div>
+      <label for="role" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Role</label>
+      <select id="role" name="role" class="mt-1 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        <option value="admin" {% if (role or (user.role if user else '')) == 'admin' %}selected{% endif %}>Admin</option>
+        <option value="auditor" {% if (role or (user.role if user else 'auditor')) == 'auditor' %}selected{% endif %}>Auditor</option>
+      </select>
+    </div>
+    <div class="flex gap-3 pt-2">
+      <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90 focus:ring-4 focus:ring-dae/50">
+        {% if user %}Save{% else %}Create user{% endif %}
+      </button>
+      <a href="/admin/users" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

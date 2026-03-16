@@ -2,6 +2,7 @@
 Scopewrath – production-ready MVP.
 FastAPI + Jinja/HTMX/Alpine + SQLite (upgradeable to Postgres).
 """
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -9,9 +10,17 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import BASE_DIR
 from app.database import get_db
-from app.routes import web, api, evidence, auth
+from app.routes import web, api, evidence, auth, admin
+from app.auth import ensure_admin_seed
 
-app = FastAPI(title="Scopewrath")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await ensure_admin_seed()
+    yield
+
+
+app = FastAPI(title="Scopewrath", lifespan=lifespan)
 
 # Static assets (local copy of DAE logo etc.)
 static_dir = BASE_DIR / "app" / "static"
@@ -26,6 +35,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(admin.router)
 app.include_router(web.router)
 app.include_router(api.router)
 app.include_router(evidence.router)
