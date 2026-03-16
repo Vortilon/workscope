@@ -2,6 +2,8 @@ services:
   app:
     build: .
     container_name: mpd-workscope-app
+    volumes:
+      - ./data:/app/data
     ports:
       - "8084:8084"
     env_file: .env
