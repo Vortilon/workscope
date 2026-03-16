@@ -146,7 +146,7 @@ async def import_step_mapping(request: Request):
         if i < 0 or i >= len(all_sheets):
             continue
         name = all_sheets[i]["name"]
-        headers = get_sheet_headers(path, i)
+        headers, header_row_index = get_sheet_headers(path, i)
         # Suggest: for each STANDARD_FIELDS, find first header that contains the key
         suggested = {}
         for _label, key in STANDARD_FIELDS:
@@ -157,7 +157,9 @@ async def import_step_mapping(request: Request):
                 if h and key.lower() in h.lower():
                     suggested[key] = hi
                     break
-        sheets_with_headers.append({"index": i, "name": name, "headers": headers, "suggested": suggested})
+        sheets_with_headers.append(
+            {"index": i, "name": name, "headers": headers, "header_row_index": header_row_index, "suggested": suggested}
+        )
     return templates.TemplateResponse(
         "mpd_import/mapping.html",
         {
@@ -214,6 +216,23 @@ async def import_run(
     form = await request.form()
     form_keys = list(form.items())
     sheet_configs = _parse_mapping_from_form(form_keys)
+    # Apply guessed header row indices from mapping form if present
+    header_rows: dict[int, int] = {}
+    for key, val in form_keys:
+        if not key.startswith("headerrow_"):
+            continue
+        try:
+            sheet_idx = int(key.split("_", 1)[1])
+        except ValueError:
+            continue
+        try:
+            header_rows[sheet_idx] = int(val)
+        except (ValueError, TypeError):
+            continue
+    for cfg in sheet_configs:
+        si = cfg.get("sheet_index", 0)
+        if si in header_rows:
+            cfg["header_row_index"] = header_rows[si]
     ds = await create_dataset(db, manufacturer, model, revision, None, path.name)
     total, results = import_mpd_excel_with_mapping(db, ds.id, path, sheet_configs)
     await set_dataset_done(db, ds.id)

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.database import get_db
-from app.models.mpd import MPDDataset
+from app.models.mpd import MPDDataset, MPDTask
 from app.models.project import Project
 
 router = APIRouter()
@@ -45,9 +45,30 @@ async def home(request: Request):
 async def mpd_library(request: Request, db: AsyncSession = Depends(get_db)):
     if (r := _require_login(request)):
         return r
-    result = await db.execute(select(MPDDataset).order_by(MPDDataset.manufacturer, MPDDataset.model))
+    result = await db.execute(select(MPDDataset).order_by(MPDDataset.manufacturer, MPDDataset.model, MPDDataset.revision))
     datasets = result.scalars().all()
     return templates.TemplateResponse("mpd_library.html", {"request": request, "datasets": datasets})
+
+
+@router.get("/mpd/{dataset_id}", response_class=HTMLResponse)
+async def mpd_detail(request: Request, dataset_id: int, db: AsyncSession = Depends(get_db)):
+    if (r := _require_login(request)):
+        return r
+    ds_result = await db.execute(select(MPDDataset).where(MPDDataset.id == dataset_id))
+    dataset = ds_result.scalars().one_or_none()
+    if not dataset:
+        raise HTTPException(404, "MPD dataset not found")
+    tasks_result = await db.execute(
+        select(MPDTask)
+        .where(MPDTask.dataset_id == dataset_id)
+        .order_by(MPDTask.row_index)
+        .limit(200)
+    )
+    tasks = tasks_result.scalars().all()
+    return templates.TemplateResponse(
+        "mpd_detail.html",
+        {"request": request, "dataset": dataset, "tasks": tasks},
+    )
 
 
 @router.get("/projects", response_class=HTMLResponse)

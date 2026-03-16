@@ -14,7 +14,10 @@
     <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
       <div>
         <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Sheet: {{ sheet.name }}</h2>
-        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Index {{ sheet.index }}, first row used as header.</p>
+        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+          Index {{ sheet.index }}, header row guessed as {{ sheet.header_row_index + 1 }} (1-based).
+        </p>
+        <input type="hidden" name="headerrow_{{ sheet.index }}" value="{{ sheet.header_row_index }}">
       </div>
     </div>
     <div class="p-4 overflow-x-auto">

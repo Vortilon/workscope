@@ -54,16 +54,37 @@ def get_workbook_sheets(file_path: Path) -> list[dict[str, Any]]:
     return out
 
 
-def get_sheet_headers(file_path: Path, sheet_index: int, header_row_index: int = 0) -> list[str]:
-    """Return first row of the sheet as column headers (strings)."""
+def get_sheet_headers(file_path: Path, sheet_index: int, header_row_index: int = 0) -> tuple[list[str], int]:
+    """Return (headers, header_row_index) for the sheet.
+
+    Heuristic: if header_row_index is 0, scan the first few rows and pick the row
+    with the most non-empty string-like cells as the header row. This helps when
+    the true header is on row 2/3/etc (common in OEM MPDs).
+    """
     import openpyxl
     wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
     sheet = wb.worksheets[sheet_index]
     rows = list(sheet.iter_rows(values_only=True))
     wb.close()
     if not rows:
-        return []
-    return [str(c).strip() if c is not None else f"Col{i}" for i, c in enumerate(rows[header_row_index])]
+        return [], 0
+    guess_idx = header_row_index
+    if header_row_index == 0:
+        best_idx = 0
+        best_score = -1
+        max_rows = min(len(rows), 10)
+        for idx in range(max_rows):
+            row = rows[idx]
+            score = 0
+            for cell in row:
+                if isinstance(cell, str) and cell.strip():
+                    score += 1
+            if score > best_score:
+                best_score = score
+                best_idx = idx
+        guess_idx = best_idx
+    headers = [str(c).strip() if c is not None else f"Col{i}" for i, c in enumerate(rows[guess_idx])]
+    return headers, guess_idx
 
 
 def get_default_sheet_indices(sheet_names: list[str], manufacturer: str) -> list[int]:
