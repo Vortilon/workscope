@@ -1,0 +1,40 @@
+# Environment and secrets
+.env
+.env.local
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Node (if frontend added later)
+node_modules/
+npm-debug.log*
+.yarn-integrity
+
+# IDE and OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*~
+
+# Large or generated files (optional: uncomment if you exclude sample xlsx from repo)
+# *.xlsx
+# fixtures/*.xlsx
+
+# Logs and local data
+*.log
+logs/
+backups/
+data/
+*.db
+audit_ai_sanitized.log

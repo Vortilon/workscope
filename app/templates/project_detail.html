@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Project {{ project.msn }} – Noteify MPD{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <a href="/projects" class="text-sm text-gray-500 hover:text-dae dark:text-gray-400 dark:hover:text-dae mb-2 inline-block">← Projects</a>
+  <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Project: {{ project.msn }}</h1>
+  <p class="mt-1 text-gray-500 dark:text-gray-400">{{ project.manufacturer }} {{ project.model }} · Status: <span class="font-medium text-gray-700 dark:text-gray-300">{{ project.status }}</span></p>
+</div>
+
+<div class="flex flex-wrap gap-3 mb-6">
+  <a href="/report/{{ project.id }}" class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90 focus:ring-4 focus:ring-dae/30">View Report</a>
+  <button type="button" class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-700 dark:hover:bg-gray-700" hx-post="/api/projects/{{ project.id }}/match" hx-swap="none" hx-trigger="click" hx-on::after-request="if(event.detail.successful) alert('Matching complete')">Re-run matching</button>
+</div>
+
+<div class="p-5 bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700">
+  <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Upload workscope</h2>
+  <p class="text-sm text-gray-500 dark:text-gray-400">Use API: <code class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">POST /api/projects/{{ project.id }}/workscope/upload</code> with file.</p>
+</div>
+{% endblock %}

@@ -1,0 +1,9 @@
+services:
+  app:
+    build: .
+    container_name: mpd-workscope-app
+    ports:
+      - "8084:8084"
+    env_file: .env
+    environment:
+      - PORT=8084

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Noteify MPD / Workscope Analyzer{% endblock %}</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'dae': '#c00000',
+            'dae-red': '#c00000',
+            primary: { DEFAULT: '#c00000', 600: '#a00000', 700: '#8b0000', 800: '#700000' }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Flowbite (Tailwind components) -->
+  <link href="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.css" rel="stylesheet">
+  <!-- DAE overrides: use DAE red for Flowbite primary-style elements -->
+  <style>
+    .bg-primary-600, .bg-blue-600 { background-color: #c00000 !important; }
+    .hover\:bg-primary-700:hover, .hover\:bg-blue-700:hover { background-color: #a00000 !important; }
+    .text-primary-600, .text-blue-600 { color: #c00000 !important; }
+    .border-primary-600 { border-color: #c00000 !important; }
+    .sidebar-nav a.active, .sidebar-nav a:hover { background-color: rgba(192,0,0,0.1); color: #c00000; }
+  </style>
+  <!-- HTMX + Alpine (keep for interactivity) -->
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js"></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-50 dark:bg-gray-900">
+  <!-- Top navbar: DAE red bar with logo and main nav -->
+  <nav class="fixed top-0 z-50 w-full bg-white border-b border-gray-200">
+    <div class="px-3 py-2 lg:px-5 lg:pl-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center justify-start rtl:justify-end">
+          <button data-drawer-target="sidebar" data-drawer-toggle="sidebar" aria-controls="sidebar" type="button" class="inline-flex items-center p-2 text-white rounded-lg sm:hidden hover:bg-white/10">
+            <span class="sr-only">Open sidebar</span>
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"/></svg>
+          </button>
+          <a href="/" class="flex items-center ms-2 md:me-24 gap-2">
+            <img src="/static/img/dae-logo.jpg" class="h-8 w-auto" alt="DAE" onerror="this.style.display='none'">
+            <span class="self-center text-xl font-semibold whitespace-nowrap text-gray-900 tracking-tight">Noteify MPD</span>
+          </a>
+        </div>
+        <div class="flex items-center gap-4 text-sm text-gray-700">
+          {% if request.session.get('user') %}
+            <span class="hidden sm:inline">{{ request.session.get('display_name', request.session.get('user')) }}</span>
+            <a href="/logout" class="inline-flex items-center px-3 py-1.5 rounded-md border border-gray-300 text-xs font-medium hover:bg-gray-100">Log out</a>
+          {% else %}
+            <a href="/login" class="inline-flex items-center px-3 py-1.5 rounded-md border border-gray-300 text-xs font-medium hover:bg-gray-100">Log in</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Sidebar (Salient-style): DAE red accent -->
+  <aside id="sidebar" class="fixed top-0 left-0 z-40 w-64 h-screen pt-14 transition-transform -translate-x-full bg-white border-r border-gray-200 sm:translate-x-0 dark:bg-gray-800 dark:border-gray-700" aria-label="Sidebar">
+    <div class="h-full px-3 pb-4 overflow-y-auto bg-white dark:bg-gray-800">
+      <ul class="space-y-2 font-medium sidebar-nav pt-4">
+        <li>
+          <a href="/" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if request.url.path == '/' %}bg-red-50 dark:bg-gray-700 border-l-4 border-dae{% endif %}">
+            <svg class="w-5 h-5 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-dae" fill="currentColor" viewBox="0 0 22 21"><path d="M16.975 11H10V4.025a1 1 0 0 0-1.066-.998 8.5 8.5 0 1 0 9.039 9.039.999.999 0 0 0-1-1.066h.002Z"/><path d="M12.5 0c-.157 0-.311.01-.565.027A1 1 0 0 0 11 1.02V10h8.975a1 1 0 0 0 1-.935c.013-.188.028-.374.028-.565A8.51 8.51 0 0 0 12.5 0Z"/></svg>
+            <span class="ms-3">Dashboard</span>
+          </a>
+        </li>
+        <li>
+          <a href="/mpd" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if request.url.path == '/mpd' %}bg-red-50 dark:bg-gray-700 border-l-4 border-dae{% endif %}">
+            <svg class="w-5 h-5 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-dae" fill="currentColor" viewBox="0 0 18 18"><path d="M6.143 0H1.857A1.857 1.857 0 0 0 0 1.857v4.286C0 7.169.831 8 1.857 8h4.286A1.857 1.857 0 0 0 8 6.143V1.857A1.857 1.857 0 0 0 6.143 0Zm10 0h-4.286A1.857 1.857 0 0 0 10 1.857v4.286C10 7.169 10.831 8 11.857 8h4.286A1.857 1.857 0 0 0 18 6.143V1.857A1.857 1.857 0 0 0 16.143 0Zm-10 10H1.857A1.857 1.857 0 0 0 0 11.857v4.286C0 17.169.831 18 1.857 18h4.286A1.857 1.857 0 0 0 8 16.143v-4.286A1.857 1.857 0 0 0 6.143 10Zm10 0h-4.286A1.857 1.857 0 0 0 10 11.857v4.286c0 1.026.831 1.857 1.857 1.857h4.286A1.857 1.857 0 0 0 18 16.143v-4.286A1.857 1.857 0 0 0 16.143 10Z"/></svg>
+            <span class="ms-3">MPD Library</span>
+          </a>
+        </li>
+        <li>
+          <a href="/projects" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if request.url.path.startswith('/projects') %}bg-red-50 dark:bg-gray-700 border-l-4 border-dae{% endif %}">
+            <svg class="w-5 h-5 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-dae" fill="currentColor" viewBox="0 0 20 20"><path d="m17.418 3.623-.018-.008a6.713 6.713 0 0 0-2.4-.569V2h1a1 1 0 1 0 0-2h-2a1 1 0 0 0-1 1v2.713a6.972 6.972 0 0 0-2.43.491.75.75 0 0 0-.224 1.131l.892.893a.75.75 0 0 0 1.131-.224c.21-.324.442-.634.686-.926v6.349a.75.75 0 0 0 1.5 0V9.264a5.023 5.023 0 0 1 .672-.96l1.414 1.414a.75.75 0 0 0 1.061-1.06L5.823 5.25a5.057 5.057 0 0 1-.674-.96.75.75 0 1 0-1.298.75 6.484 6.484 0 0 0 .93 1.417l-1.328 1.329a.75.75 0 0 0 1.06 1.06l2.829-2.828a.75.75 0 0 0 .224-1.131 6.715 6.715 0 0 0-2.4-.569V3.25A.25.25 0 0 1 5.75 3h.5a.25.25 0 0 1 .25.25v.214c.96.132 1.88.417 2.74.836.36.218.963.086 1.18-.273a.75.75 0 0 0-.273-1.182 8.166 8.166 0 0 0-3.147-.693V3.25A1.75 1.75 0 0 0 6.25 1.5h-.5A1.75 1.75 0 0 0 4 3.25v.214a8.166 8.166 0 0 0-3.147.693.75.75 0 1 0-.273 1.182c.217.36.82.491 1.18.273a6.715 6.715 0 0 1 2.74-.836V9.5a.75.75 0 0 0 1.5 0V5.232a5.023 5.023 0 0 1 .672.96l-1.414 1.414a.75.75 0 0 0 1.061 1.06l2.829-2.828a.75.75 0 0 0 .224-1.131 6.716 6.716 0 0 1-2.4-.569V3.25A.25.25 0 0 1 10.25 3h.5a.25.25 0 0 1 .25.25v.214c.96.132 1.88.417 2.74.836.36.218.963.086 1.18-.273a.75.75 0 0 0-.273-1.182 8.166 8.166 0 0 0-3.147-.693V3.25A1.75 1.75 0 0 0 11.25 1.5h-.5A1.75 1.75 0 0 0 9 3.25v.214a8.166 8.166 0 0 0-3.147.693.75.75 0 1 0-.273 1.182c.217.36.82.491 1.18.273.86-.42 1.78-.704 2.74-.836V9.5a.75.75 0 0 0 1.5 0V5.232c.458.307.89.65 1.284 1.024l1.414-1.414a.75.75 0 1 0-1.061-1.06L9.823 5.25a5.057 5.057 0 0 1-.674-.96.75.75 0 1 0-1.298.75 6.484 6.484 0 0 0 .93 1.417L5.636 9.636a.75.75 0 0 0 1.06 1.06l2.829-2.828a.75.75 0 0 0 .224-1.131 6.715 6.715 0 0 1-2.4-.569V3.25A.25.25 0 0 1 7.75 3h.5a.25.25 0 0 1 .25.25v.214a8.166 8.166 0 0 0 3.147.693.75.75 0 0 0 .273-1.182 6.716 6.716 0 0 1-2.74-.836V3.25A1.75 1.75 0 0 0 8.25 1.5h-.5A1.75 1.75 0 0 0 6 3.25v.214a8.166 8.166 0 0 0-3.147.693.75.75 0 0 0-.273 1.182c.217.36.82.491 1.18.273a6.715 6.715 0 0 1 2.74-.836V9.5a.75.75 0 0 0 1.5 0V5.232a5.023 5.023 0 0 1 .672-.96l1.414 1.414a.75.75 0 0 0 1.061-1.06L8.636 3.636a5.057 5.057 0 0 1-.674-.96.75.75 0 0 0-1.298.75 6.484 6.484 0 0 0 .93 1.417L4.636 8.636a.75.75 0 0 0 1.06 1.06l2.829-2.828a.75.75 0 0 0 .224-1.131 6.716 6.716 0 0 1-2.4-.569V3.25A.25.25 0 0 1 6.25 3h.5a.25.25 0 0 1 .25.25v.214a8.166 8.166 0 0 0 3.147.693.75.75 0 0 0 .273-1.182 6.716 6.716 0 0 1-2.74-.836V3.25A1.75 1.75 0 0 0 7.25 1.5h-.5A1.75 1.75 0 0 0 5 3.25v.214a8.166 8.166 0 0 0-3.147.693.75.75 0 0 0-.273 1.182c.217.36.82.491 1.18.273.86-.42 1.78-.704 2.74-.836V9.5a.75.75 0 0 0 1.5 0V5.232c.458.307.89.65 1.284 1.024l1.414-1.414a.75.75 0 1 0-1.061-1.06L6.636 5.25a5.057 5.057 0 0 1-.674-.96.75.75 0 0 0-1.298.75 6.484 6.484 0 0 0 .93 1.417L2.636 9.636a.75.75 0 0 0 1.06 1.06l2.829-2.828a.75.75 0 0 0 .224-1.131 6.715 6.715 0 0 1-2.4-.569V3.25A.25.25 0 0 1 4.25 3h.5a.25.25 0 0 1 .25.25v.214a8.166 8.166 0 0 0 3.147.693.75.75 0 0 0 .273-1.182 6.716 6.716 0 0 1-2.74-.836V3.25A1.75 1.75 0 0 0 5.25 1.5h-.5A1.75 1.75 0 0 0 3 3.25v.214a8.166 8.166 0 0 0-3.147.693.75.75 0 0 0-.273 1.182c.217.36.82.491 1.18.273.86-.42 1.78-.704 2.74-.836V9.5a.75.75 0 0 0 1.5 0V5.232a5.023 5.023 0 0 1 .672-.96l1.414 1.414a.75.75 0 0 0 1.061-1.06L4.636 3.636a5.057 5.057 0 0 1-.674-.96.75.75 0 0 0-1.298.75 6.484 6.484 0 0 0 .93 1.417L.636 7.636a.75.75 0 0 0 1.06 1.06l2.829-2.828a.75.75 0 0 0 .224-1.131 6.716 6.716 0 0 1-2.4-.569V3.25A.25.25 0 0 1 2.25 3h.5a.25.25 0 0 1 .25.25v.214a8.166 8.166 0 0 0 3.147.693.75.75 0 0 0 .273-1.182 6.716 6.716 0 0 1-2.74-.836V3.25A1.75 1.75 0 0 0 3.25 1.5h-.5A1.75 1.75 0 0 0 1 3.25v.214a8.166 8.166 0 0 0-3.147.693.75.75 0 0 0-.273 1.182c.217.36.82.491 1.18.273.86-.42 1.78-.704 2.74-.836V9.5a.75.75 0 0 0 1.5 0V5.232c.458.307.89.65 1.284 1.024l1.414-1.414a.75.75 0 1 0-1.061-1.06L1.823 5.25a5.057 5.057 0 0 1-.674-.96.75.75 0 0 0-1.298.75 6.484 6.484 0 0 0 .93 1.417L-1.364 9.636a.75.75 0 0 0 1.06 1.06l2.829-2.828a.75.75 0 0 0 .224-1.131z"/></svg>
+            <span class="ms-3">Projects</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="p-4 sm:ml-64 pt-16 min-h-screen">
+    <div class="p-4 mt-2 rounded-lg">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  <!-- Flowbite JS -->
+  <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

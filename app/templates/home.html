@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – Noteify MPD{% endblock %}
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Workscope Analyzer</h1>
+  <p class="mt-1 text-gray-500 dark:text-gray-400">Validate aircraft maintenance workscopes against manufacturer MPDs.</p>
+</div>
+
+<!-- Quick actions -->
+<div class="grid grid-cols-1 gap-4 mb-8 sm:grid-cols-2 lg:grid-cols-3">
+  <a href="/mpd" class="block p-6 bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+    <div class="flex items-center gap-3">
+      <div class="flex justify-center items-center w-12 h-12 rounded-lg bg-dae/10">
+        <svg class="w-6 h-6 text-dae" fill="currentColor" viewBox="0 0 18 18"><path d="M6.143 0H1.857A1.857 1.857 0 0 0 0 1.857v4.286C0 7.169.831 8 1.857 8h4.286A1.857 1.857 0 0 0 8 6.143V1.857A1.857 1.857 0 0 0 6.143 0Zm10 0h-4.286A1.857 1.857 0 0 0 10 1.857v4.286C10 7.169 10.831 8 11.857 8h4.286A1.857 1.857 0 0 0 18 6.143V1.857A1.857 1.857 0 0 0 16.143 0Zm-10 10H1.857A1.857 1.857 0 0 0 0 11.857v4.286C0 17.169.831 18 1.857 18h4.286A1.857 1.857 0 0 0 8 16.143v-4.286A1.857 1.857 0 0 0 6.143 10Zm10 0h-4.286A1.857 1.857 0 0 0 10 11.857v4.286c0 1.026.831 1.857 1.857 1.857h4.286A1.857 1.857 0 0 0 18 16.143v-4.286A1.857 1.857 0 0 0 16.143 10Z"/></svg>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">MPD Library</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Manage MPD datasets by manufacturer, model, revision</p>
+      </div>
+    </div>
+  </a>
+  <a href="/projects/new" class="block p-6 bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+    <div class="flex items-center gap-3">
+      <div class="flex justify-center items-center w-12 h-12 rounded-lg bg-dae/10">
+        <svg class="w-6 h-6 text-dae" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">New Project</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Create a project for one aircraft MSN</p>
+      </div>
+    </div>
+  </a>
+  <a href="/projects" class="block p-6 bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+    <div class="flex items-center gap-3">
+      <div class="flex justify-center items-center w-12 h-12 rounded-lg bg-dae/10">
+        <svg class="w-6 h-6 text-dae" fill="currentColor" viewBox="0 0 20 20"><path d="m17.418 3.623-.018-.008a6.713 6.713 0 0 0-2.4-.569V2h1a1 1 0 1 0 0-2h-2a1 1 0 0 0-1 1v2.713a6.972 6.972 0 0 0-2.43.491.75.75 0 0 0-.224 1.131l.892.893a.75.75 0 0 0 1.131-.224c.21-.324.442-.634.686-.926v6.349a.75.75 0 0 0 1.5 0V9.264a5.023 5.023 0 0 1 .672-.96l1.414 1.414a.75.75 0 0 0 1.061-1.06L5.823 5.25a5.057 5.057 0 0 1-.674-.96.75.75 0 1 0-1.298.75 6.484 6.484 0 0 0 .93 1.417l-1.328 1.329a.75.75 0 0 0 1.06 1.06l2.829-2.828a.75.75 0 0 0 .224-1.131 6.715 6.715 0 0 0-2.4-.569V3.25A.25.25 0 0 1 5.75 3h.5a.25.25 0 0 1 .25.25v.214c.96.132 1.88.417 2.74.836.36.218.963.086 1.18-.273a.75.75 0 0 0-.273-1.182 8.166 8.166 0 0 0-3.147-.693V3.25A1.75 1.75 0 0 0 6.25 1.5h-.5A1.75 1.75 0 0 0 4 3.25v.214a8.166 8.166 0 0 0-3.147.693.75.75 0 1 0-.273 1.182c.217.36.82.491 1.18.273a6.715 6.715 0 0 1 2.74-.836V9.5a.75.75 0 0 0 1.5 0V5.232a5.023 5.023 0 0 1 .672.96l-1.414 1.414a.75.75 0 0 0 1.061 1.06l2.829-2.828a.75.75 0 0 0 .224-1.131 6.716 6.716 0 0 1-2.4-.569V3.25A.25.25 0 0 1 10.25 3h.5a.25.25 0 0 1 .25.25v.214c.96.132 1.88.417 2.74.836.36.218.963.086 1.18-.273a.75.75 0 0 0-.273-1.182 8.166 8.166 0 0 0-3.147-.693V3.25A1.75 1.75 0 0 0 11.25 1.5h-.5A1.75 1.75 0 0 0 9 3.25v.214a8.166 8.166 0 0 0-3.147.693.75.75 0 1 0-.273 1.182c.217.36.82.491 1.18.273.86-.42 1.78-.704 2.74-.836V9.5a.75.75 0 0 0 1.5 0V5.232c.458.307.89.65 1.284 1.024l1.414-1.414a.75.75 0 1 0-1.061-1.06L9.823 5.25a5.057 5.057 0 0 1-.674-.96.75.75 0 1 0-1.298.75 6.484 6.484 0 0 0 .93 1.417L5.636 9.636a.75.75 0 0 0 1.06 1.06l2.829-2.828a.75.75 0 0 0 .224-1.131 6.715 6.715 0 0 1-2.4-.569V3.25A.25.25 0 0 1 7.75 3h.5a.25.25 0 0 1 .25.25v.214a8.166 8.166 0 0 0 3.147.693.75.75 0 0 0 .273-1.182 6.716 6.716 0 0 1-2.74-.836V3.25A1.75 1.75 0 0 0 8.25 1.5h-.5A1.75 1.75 0 0 0 6 3.25v.214a8.166 8.166 0 0 0-3.147.693.75.75 0 0 0-.273 1.182c.217.36.82.491 1.18.273a6.715 6.715 0 0 1 2.74-.836V9.5a.75.75 0 0 0 1.5 0V5.232a5.023 5.023 0 0 1 .672-.96l1.414 1.414a.75.75 0 0 0 1.061-1.06L8.636 3.636a5.057 5.057 0 0 1-.674-.96.75.75 0 0 0-1.298.75 6.484 6.484 0 0 0 .93 1.417L4.636 8.636a.75.75 0 0 0 1.06 1.06l2.829-2.828a.75.75 0 0 0 .224-1.131 6.716 6.716 0 0 1-2.4-.569V3.25A.25.25 0 0 1 6.25 3h.5a.25.25 0 0 1 .25.25v.214a8.166 8.166 0 0 0 3.147.693.75.75 0 0 0 .273-1.182 6.716 6.716 0 0 1-2.74-.836V3.25A1.75 1.75 0 0 0 7.25 1.5h-.5A1.75 1.75 0 0 0 5 3.25v.214a8.166 8.166 0 0 0-3.147.693.75.75 0 0 0-.273 1.182c.217.36.82.491 1.18.273.86-.42 1.78-.704 2.74-.836V9.5a.75.75 0 0 0 1.5 0V5.232c.458.307.89.65 1.284 1.024l1.414-1.414a.75.75 0 1 0-1.061-1.06L6.636 5.25z"/></svg>
+      </div>
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Projects</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400">View and manage evaluation projects</p>
+      </div>
+    </div>
+  </a>
+</div>
+
+<!-- Workflow card -->
+<div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700 overflow-hidden">
+  <div class="p-5 border-b border-gray-200 dark:border-gray-700">
+    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Workflow</h2>
+  </div>
+  <div class="p-5">
+    <ol class="space-y-3 list-decimal list-inside text-gray-600 dark:text-gray-300">
+      <li><a href="/mpd" class="text-dae hover:underline font-medium">MPD Library</a> – Manage MPD datasets by manufacturer, model, revision</li>
+      <li><a href="/projects/new" class="text-dae hover:underline font-medium">New Project</a> – Create a project for one aircraft MSN</li>
+      <li>Upload workscope (Excel or PDF)</li>
+      <li>Review detected columns and run matching</li>
+      <li>Review applicability and evidence</li>
+      <li>View report and export</li>
+    </ol>
+  </div>
+</div>
+{% endblock %}

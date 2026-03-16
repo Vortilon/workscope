@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Projects – Noteify MPD{% endblock %}
+{% block content %}
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Projects</h1>
+    <p class="mt-1 text-gray-500 dark:text-gray-400">Workscope evaluation projects by aircraft MSN.</p>
+  </div>
+  <a href="/projects/new" class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90 focus:ring-4 focus:ring-dae/30">New Project</a>
+</div>
+
+<div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+      <thead class="text-xs text-white uppercase bg-dae">
+        <tr>
+          <th scope="col" class="px-6 py-4">MSN</th>
+          <th scope="col" class="px-6 py-4">Manufacturer</th>
+          <th scope="col" class="px-6 py-4">Model</th>
+          <th scope="col" class="px-6 py-4">Status</th>
+          <th scope="col" class="px-6 py-4 text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in projects %}
+        <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+          <td class="px-6 py-4 font-medium text-gray-900 dark:text-white">{{ p.msn }}</td>
+          <td class="px-6 py-4">{{ p.manufacturer }}</td>
+          <td class="px-6 py-4">{{ p.model }}</td>
+          <td class="px-6 py-4">
+            <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">{{ p.status }}</span>
+          </td>
+          <td class="px-6 py-4 text-right">
+            <a href="/projects/{{ p.id }}" class="font-medium text-gray-600 hover:text-dae dark:text-gray-400 dark:hover:text-dae">Open</a>
+            <span class="mx-1">·</span>
+            <a href="/report/{{ p.id }}" class="font-medium text-dae hover:underline">Report</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr class="bg-white dark:bg-gray-800">
+          <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No projects. <a href="/projects/new" class="text-dae hover:underline">Create one</a>.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

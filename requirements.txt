@@ -1,0 +1,28 @@
+# Core
+fastapi
+uvicorn[standard]
+python-dotenv
+python-multipart
+itsdangerous
+
+# DB
+sqlalchemy>=2.0
+alembic
+aiosqlite
+
+# Excel & files
+openpyxl
+pypdf>=3.0
+Pillow
+# OCR (optional; install tesseract-ocr on system)
+# pdf2image
+# pytesseract
+
+# HTTP / AI
+httpx
+
+# Templates & frontend
+jinja2
+
+# Optional: for structured extraction / future AI training hooks
+# pydantic-settings
