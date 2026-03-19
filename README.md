@@ -77,6 +77,19 @@ See `.env.example`. Never commit secrets.
 6. **Review Applicability** – Resolve TBC with evidence (Phase 2).
 7. **View Report** – /report/{project_id}; clickable counts.
 
+## External read-only integration
+
+If you need to connect an **external Python/FastAPI application** to Scopewrath MPD data in **read-only** mode:
+
+- **Recommended (external networks/IPs):** Use the **read-only HTTPS API**:
+  - `GET /api/mpd/datasets` – list MPD datasets
+  - `GET /api/mpd/datasets/{dataset_id}/tasks?section=32&limit=5&offset=0` – list MPD tasks (optional ATA filter)
+- **Same-host option:** Read the SQLite DB file directly in read-only mode (SQLite has no users):
+  - Host path (Docker deploy): `/opt/mpd-workscope/data/mpd_workscope.db`
+  - Open read-only using URI: `file:/opt/mpd-workscope/data/mpd_workscope.db?mode=ro`
+
+Full details (tables/columns, sample SQL, network notes): `docs/EXTERNAL_DB_READONLY.md`.
+
 ## Server Deploy
 
 See `docs/SERVER_SETUP.md`. Deploy to `/opt/mpd-workscope`; Nginx for mpd.noteify.us → 8084; certbot for TLS.

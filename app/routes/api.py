@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from typing import Optional
 from pydantic import BaseModel
 
@@ -33,6 +33,85 @@ class ProjectCreate(BaseModel):
 async def api_list_mpd(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(MPDDataset).order_by(MPDDataset.manufacturer))
     return [{"id": d.id, "manufacturer": d.manufacturer, "model": d.model, "revision": d.revision, "parsed_status": d.parsed_status} for d in result.scalars().all()]
+
+
+@router.get("/mpd/datasets")
+async def api_list_mpd_datasets(db: AsyncSession = Depends(get_db)):
+    """Read-only: list all MPD datasets (same as GET /api/mpd)."""
+    result = await db.execute(select(MPDDataset).order_by(MPDDataset.manufacturer, MPDDataset.model, MPDDataset.revision))
+    return [
+        {
+            "id": d.id,
+            "manufacturer": d.manufacturer,
+            "model": d.model,
+            "revision": d.revision,
+            "parsed_status": d.parsed_status,
+            "source_file": d.source_file,
+            "created_at": d.created_at.isoformat() if d.created_at else None,
+        }
+        for d in result.scalars().all()
+    ]
+
+
+@router.get("/mpd/datasets/{dataset_id}/tasks")
+async def api_list_mpd_tasks(
+    dataset_id: int,
+    db: AsyncSession = Depends(get_db),
+    section: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+):
+    """Read-only: list MPD tasks for a dataset. Optional filter by ATA section (e.g. section=32)."""
+    ds = (await db.execute(select(MPDDataset).where(MPDDataset.id == dataset_id))).scalars().one_or_none()
+    if not ds:
+        raise HTTPException(404, "MPD dataset not found")
+    q = select(MPDTask).where(MPDTask.dataset_id == dataset_id).order_by(MPDTask.row_index)
+    if section is not None and section != "":
+        q = q.where(
+            or_(
+                MPDTask.section.contains(section),
+                MPDTask.chapter.contains(section),
+            )
+        )
+    q = q.offset(offset).limit(min(limit, 1000))
+    result = await db.execute(q)
+    tasks = result.scalars().all()
+    return [
+        {
+            "id": t.id,
+            "dataset_id": t.dataset_id,
+            "task_reference": t.task_reference,
+            "task_number": t.task_number,
+            "task_code": t.task_code,
+            "title": t.title,
+            "description": t.description,
+            "section": t.section,
+            "chapter": t.chapter,
+            "threshold_raw": t.threshold_raw,
+            "interval_raw": t.interval_raw,
+            "threshold_normalized": t.threshold_normalized,
+            "interval_normalized": t.interval_normalized,
+            "interval_json": t.interval_json,
+            "source_references": t.source_references,
+            "applicability_raw": t.applicability_raw,
+            "applicability_tokens_normalized": t.applicability_tokens_normalized,
+            "job_procedure": t.job_procedure,
+            "mp_reference": t.mp_reference,
+            "cmm_reference": t.cmm_reference,
+            "zones": t.zones,
+            "zone_mh": t.zone_mh,
+            "man": t.man,
+            "access_items": t.access_items,
+            "access_mh": t.access_mh,
+            "preparation_description": t.preparation_description,
+            "preparation_mh": t.preparation_mh,
+            "skill": t.skill,
+            "equipment": t.equipment,
+            "extra_raw": t.extra_raw,
+            "row_index": t.row_index,
+        }
+        for t in tasks
+    ]
 
 
 @router.post("/mpd/upload")
