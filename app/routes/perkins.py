@@ -9,7 +9,7 @@ from app.config import PERKINS_SERVICE_KEY, PERKINS_URL
 
 router = APIRouter(prefix="/api/perkins", tags=["perkins"])
 
-_TIMEOUT = 120.0
+_TIMEOUT = 270.0
 
 
 class PerkinsQuery(BaseModel):
