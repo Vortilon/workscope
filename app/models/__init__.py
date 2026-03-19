@@ -16,6 +16,7 @@ from app.models.workscope import (
     WorkscopeMatchCandidate,
 )
 from app.models.report import ProjectReport
+from app.models.aviation_document import AviationDocument, AviationDocumentTask, AviationDocumentPart
 
 __all__ = [
     "User",
@@ -32,4 +33,7 @@ __all__ = [
     "ModificationEvidenceFile",
     "ProjectReport",
     "AuditLog",
+    "AviationDocument",
+    "AviationDocumentTask",
+    "AviationDocumentPart",
 ]

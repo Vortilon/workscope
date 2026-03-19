@@ -37,6 +37,10 @@ AI_PROVIDER = os.getenv("AI_PROVIDER", "grok")  # grok | openai | anthropic
 # Server
 PORT = int(os.getenv("PORT", "8084"))
 
+# Perkins AI integration (optional — if unset, chat panel hidden)
+PERKINS_URL = os.getenv("PERKINS_URL", "https://perkins.noteify.us").rstrip("/")
+PERKINS_SERVICE_KEY = os.getenv("PERKINS_SERVICE_KEY", "")
+
 # DAE styling
 DAE_HEADER_BG = "rgb(192, 0, 0)"
 DAE_HEADER_TEXT = "white"
