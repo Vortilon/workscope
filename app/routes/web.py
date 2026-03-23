@@ -11,19 +11,19 @@ from sqlalchemy import select
 from app.database import get_db
 from app.models.mpd import MPDDataset, MPDTask
 from app.models.project import Project
-from app.services.normalize import normalize_applicability_tokens
+from app.services.normalize import (
+    normalize_applicability_tokens,
+    threshold_tokens as _thr_tokens_fn,
+    interval_tokens as _int_tokens_fn,
+)
 
 router = APIRouter()
 BASE = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 
-# ── Custom Jinja2 filter: split threshold/interval into tokens ────────────────
-def _interval_tokens(raw):
-    if not raw:
-        return []
-    return [t.strip() for t in _re.split(r"[,;]", str(raw)) if t.strip()]
-
-templates.env.filters["interval_tokens"] = _interval_tokens
+# ── Custom Jinja2 filters ────────────────────────────────────────────────────
+templates.env.filters["threshold_tokens"] = _thr_tokens_fn
+templates.env.filters["interval_tokens"]  = _int_tokens_fn
 
 
 def _redirect_login():

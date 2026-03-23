@@ -10,7 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.models.mpd import MPDDataset, MPDTask
-from app.services.normalize import normalize_interval_raw, normalize_applicability_tokens
+from app.services.normalize import (
+    normalize_interval_raw,
+    normalize_applicability_tokens,
+    split_combined_ti,
+)
 
 # Standard fields shown in column-mapping UI (label, our key)
 STANDARD_FIELDS = [
@@ -312,8 +316,22 @@ def import_mpd_excel_with_mapping(
                 mpd_item_num = _get_mapped_val(row, col("mpd_item_number"))
                 task_ref = _get_mapped_val(row, col("task_reference")) or _get_mapped_val(row, col("title"))
                 threshold_raw = _get_mapped_val(row, col("threshold"))
-                interval_raw = _get_mapped_val(row, col("interval"))
+                interval_raw  = _get_mapped_val(row, col("interval"))
                 applicability_raw = _get_mapped_val(row, col("effectivity"))
+
+                # ATR / some OEMs put T: ... I: ... in one cell.
+                # If threshold has the combined pattern and interval is empty, split them.
+                if threshold_raw and not interval_raw:
+                    t_part, i_part = split_combined_ti(threshold_raw)
+                    if i_part:
+                        threshold_raw = t_part or None
+                        interval_raw  = i_part
+                elif interval_raw and not threshold_raw:
+                    t_part, i_part = split_combined_ti(interval_raw)
+                    if i_part:
+                        threshold_raw = t_part or None
+                        interval_raw  = i_part
+
                 th_norm, th_json = normalize_interval_raw(threshold_raw or None)
                 int_norm, int_json = normalize_interval_raw(interval_raw or None)
                 tokens = normalize_applicability_tokens(applicability_raw or None)

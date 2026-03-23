@@ -40,9 +40,11 @@
     <div class="px-3 py-2 lg:px-5 lg:pl-3">
       <div class="flex items-center justify-between">
         <div class="flex items-center justify-start rtl:justify-end">
-          <button data-drawer-target="sidebar" data-drawer-toggle="sidebar" aria-controls="sidebar" type="button" class="inline-flex items-center p-2 text-white rounded-lg sm:hidden hover:bg-white/10">
-            <span class="sr-only">Open sidebar</span>
-            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"/></svg>
+          <!-- Sidebar toggle — visible on all screen sizes -->
+          <button id="sb-toggle-btn" onclick="toggleSidebar()" type="button"
+                  class="inline-flex items-center p-2 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 mr-1"
+                  title="Toggle sidebar">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path clip-rule="evenodd" fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"/></svg>
           </button>
           <a href="/" class="flex items-center ms-2 md:me-24 gap-2">
             <img src="/static/img/dae-logo.jpg" class="h-8 w-auto" alt="DAE" onerror="this.style.display='none'">
@@ -62,7 +64,7 @@
   </nav>
 
   <!-- Sidebar (Salient-style): DAE red accent -->
-  <aside id="sidebar" class="fixed top-0 left-0 z-40 w-64 h-screen pt-14 transition-transform -translate-x-full bg-white border-r border-gray-200 sm:translate-x-0 dark:bg-gray-800 dark:border-gray-700" aria-label="Sidebar">
+  <aside id="sidebar" class="fixed top-0 left-0 z-40 w-64 h-screen pt-14 bg-white border-r border-gray-200 dark:bg-gray-800 dark:border-gray-700" style="transition: transform .25s ease; transform: translateX(0);" aria-label="Sidebar">
     <div class="h-full px-3 pb-4 overflow-y-auto bg-white dark:bg-gray-800">
       <ul class="space-y-2 font-medium sidebar-nav pt-4">
         <li>
@@ -96,7 +98,7 @@
   </aside>
 
   <!-- Main content -->
-  <main class="p-4 sm:ml-64 pt-16 min-h-screen">
+  <main id="main-content" class="p-4 pt-16 min-h-screen" style="transition: margin-left .25s ease; margin-left: 16rem;">
     <div class="p-4 mt-2 rounded-lg">
       {% block content %}{% endblock %}
     </div>
@@ -104,6 +106,48 @@
 
   <!-- Flowbite JS -->
   <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"></script>
+
+  <!-- Sidebar collapse logic -->
+  <script>
+  (function() {
+    var SB_KEY = 'sw_sidebar_open';
+    var sbOpen = localStorage.getItem(SB_KEY) !== 'false';
+
+    function applySidebar(animate) {
+      var aside = document.getElementById('sidebar');
+      var main  = document.getElementById('main-content');
+      if (!aside || !main) return;
+      if (!animate) {
+        aside.style.transition = 'none';
+        main.style.transition  = 'none';
+      }
+      if (sbOpen) {
+        aside.style.transform  = 'translateX(0)';
+        main.style.marginLeft  = '16rem';
+      } else {
+        aside.style.transform  = 'translateX(-100%)';
+        main.style.marginLeft  = '0';
+      }
+      if (!animate) {
+        // Force reflow then re-enable transition
+        aside.offsetHeight;
+        main.offsetHeight;
+        aside.style.transition = '';
+        main.style.transition  = '';
+      }
+    }
+
+    window.toggleSidebar = function() {
+      sbOpen = !sbOpen;
+      localStorage.setItem(SB_KEY, sbOpen);
+      applySidebar(true);
+    };
+
+    // Apply immediately (no animation) on page load
+    document.addEventListener('DOMContentLoaded', function() { applySidebar(false); });
+  })();
+  </script>
+
   {% block scripts %}{% endblock %}
 
   {% if request.session.get('user') %}
