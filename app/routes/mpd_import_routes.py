@@ -27,8 +27,8 @@ BASE = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=str(BASE / "templates"))
 
 
-def _import_path(import_id: str) -> Path:
-    return IMPORT_TEMP_DIR / f"{import_id}.xlsx"
+def _import_path(import_id: str, ext: str = ".xlsx") -> Path:
+    return IMPORT_TEMP_DIR / f"{import_id}{ext}"
 
 
 @router.get("/mpd/import", response_class=HTMLResponse)
@@ -57,17 +57,18 @@ async def import_upload_post(
             {"request": request, "error": "Please select a file.", "manufacturer": manufacturer, "model": model, "revision": revision},
         )
     ext = Path(file.filename).suffix.lower()
-    if ext != ".xlsx":
+    if ext not in {".xlsx", ".xls"}:
         return templates.TemplateResponse(
             "mpd_import/upload.html",
-            {"request": request, "error": "Only .xlsx files are supported.", "manufacturer": manufacturer, "model": model, "revision": revision},
+            {"request": request, "error": "Only .xlsx and .xls files are supported.", "manufacturer": manufacturer, "model": model, "revision": revision},
         )
     import_id = uuid.uuid4().hex
-    path = _import_path(import_id)
+    path = _import_path(import_id, ext)
     path.parent.mkdir(parents=True, exist_ok=True)
     content = await file.read()
     path.write_bytes(content)
     request.session["mpd_import_id"] = import_id
+    request.session["mpd_import_ext"] = ext
     request.session["mpd_import_manufacturer"] = manufacturer
     request.session["mpd_import_model"] = model
     request.session["mpd_import_revision"] = revision
@@ -81,7 +82,7 @@ async def import_step_sheets(request: Request):
     import_id = request.session.get("mpd_import_id")
     if not import_id:
         return RedirectResponse("/mpd/import", status_code=303)
-    path = _import_path(import_id)
+    path = _import_path(import_id, request.session.get("mpd_import_ext", ".xlsx"))
     if not path.exists():
         request.session.pop("mpd_import_id", None)
         return RedirectResponse("/mpd/import?error=expired", status_code=303)
@@ -132,7 +133,7 @@ async def import_step_mapping(request: Request):
     sheet_indices = request.session.get("mpd_import_sheet_indices")
     if not import_id or not sheet_indices:
         return RedirectResponse("/mpd/import", status_code=303)
-    path = _import_path(import_id)
+    path = _import_path(import_id, request.session.get("mpd_import_ext", ".xlsx"))
     if not path.exists():
         return RedirectResponse("/mpd/import?error=expired", status_code=303)
     try:
@@ -210,7 +211,7 @@ async def import_run(
     revision = request.session.get("mpd_import_revision", "")
     if not import_id or not sheet_indices:
         return RedirectResponse("/mpd/import", status_code=303)
-    path = _import_path(import_id)
+    path = _import_path(import_id, request.session.get("mpd_import_ext", ".xlsx"))
     if not path.exists():
         return RedirectResponse("/mpd/import?error=expired", status_code=303)
     form = await request.form()
@@ -243,6 +244,7 @@ async def import_run(
     except Exception:
         pass
     request.session.pop("mpd_import_id", None)
+    request.session.pop("mpd_import_ext", None)
     request.session.pop("mpd_import_sheet_indices", None)
     request.session.pop("mpd_import_manufacturer", None)
     request.session.pop("mpd_import_model", None)

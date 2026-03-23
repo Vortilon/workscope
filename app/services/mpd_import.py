@@ -45,13 +45,31 @@ DEFAULT_SHEETS = {
 }
 
 
+def _load_wb_sheets(file_path: Path) -> list[tuple[str, list[list[Any]]]]:
+    """
+    Load all sheets from an .xlsx or .xls file.
+    Returns list of (sheet_name, rows) where rows is list of list of cell values.
+    """
+    ext = file_path.suffix.lower()
+    if ext == ".xls":
+        import xlrd
+        wb = xlrd.open_workbook(str(file_path))
+        result = []
+        for sheet in wb.sheets():
+            rows = [sheet.row_values(r) for r in range(sheet.nrows)]
+            result.append((sheet.name, rows))
+        return result
+    else:
+        import openpyxl
+        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+        result = [(ws.title, [list(r) for r in ws.iter_rows(values_only=True)]) for ws in wb.worksheets]
+        wb.close()
+        return result
+
+
 def get_workbook_sheets(file_path: Path) -> list[dict[str, Any]]:
-    """Return list of {index, name} for all sheets. Uses openpyxl."""
-    import openpyxl
-    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
-    out = [{"index": i, "name": s.title} for i, s in enumerate(wb.worksheets)]
-    wb.close()
-    return out
+    """Return list of {index, name} for all sheets."""
+    return [{"index": i, "name": name} for i, (name, _) in enumerate(_load_wb_sheets(file_path))]
 
 
 def get_sheet_headers(file_path: Path, sheet_index: int, header_row_index: int = 0) -> tuple[list[str], int]:
@@ -61,11 +79,10 @@ def get_sheet_headers(file_path: Path, sheet_index: int, header_row_index: int =
     with the most non-empty string-like cells as the header row. This helps when
     the true header is on row 2/3/etc (common in OEM MPDs).
     """
-    import openpyxl
-    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
-    sheet = wb.worksheets[sheet_index]
-    rows = list(sheet.iter_rows(values_only=True))
-    wb.close()
+    sheets = _load_wb_sheets(file_path)
+    if sheet_index >= len(sheets):
+        return [], 0
+    _, rows = sheets[sheet_index]
     if not rows:
         return [], 0
     guess_idx = header_row_index
@@ -75,10 +92,7 @@ def get_sheet_headers(file_path: Path, sheet_index: int, header_row_index: int =
         max_rows = min(len(rows), 10)
         for idx in range(max_rows):
             row = rows[idx]
-            score = 0
-            for cell in row:
-                if isinstance(cell, str) and cell.strip():
-                    score += 1
+            score = sum(1 for cell in row if isinstance(cell, str) and cell.strip())
             if score > best_score:
                 best_score = score
                 best_idx = idx
@@ -147,11 +161,10 @@ async def import_mpd_excel(
     Parse Excel MPD and insert MPDTask rows. Preserve raw; set normalized fields.
     Returns count of tasks created.
     """
-    import openpyxl
-    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
-    sheet = wb.worksheets[sheet_index]
-    rows = list(sheet.iter_rows(values_only=True))
-    wb.close()
+    sheets = _load_wb_sheets(file_path)
+    if sheet_index >= len(sheets):
+        return 0
+    _, rows = sheets[sheet_index]
     if not rows:
         return 0
     headers = [str(c).strip() if c is not None else f"Col{i}" for i, c in enumerate(rows[header_row_index])]
@@ -230,17 +243,17 @@ def import_mpd_excel_with_mapping(
     column_map: dict our_field -> col_index (0-based).
     Returns (total_task_count, list of {sheet_name, count, errors: [row, message]}).
     """
-    import openpyxl
-    wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+    all_sheets = _load_wb_sheets(file_path)
     total = 0
     results = []
     for cfg in sheet_configs:
         sheet_idx = cfg.get("sheet_index", 0)
         header_row = cfg.get("header_row_index", 0)
         column_map = cfg.get("column_map") or {}
-        sheet_name = wb.worksheets[sheet_idx].title
-        sheet = wb.worksheets[sheet_idx]
-        rows = list(sheet.iter_rows(values_only=True))
+        if sheet_idx >= len(all_sheets):
+            results.append({"sheet_name": f"Sheet{sheet_idx}", "count": 0, "errors": [{"row": 0, "message": "Sheet index out of range"}]})
+            continue
+        sheet_name, rows = all_sheets[sheet_idx]
         if not rows:
             results.append({"sheet_name": sheet_name, "count": 0, "errors": []})
             continue
@@ -299,5 +312,4 @@ def import_mpd_excel_with_mapping(
             except Exception as e:
                 errors.append({"row": idx + 1, "message": str(e)})
         results.append({"sheet_name": sheet_name, "count": count, "errors": errors})
-    wb.close()
     return total, results

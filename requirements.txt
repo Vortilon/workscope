@@ -13,6 +13,7 @@ aiosqlite
 
 # Excel & files
 openpyxl
+xlrd>=2.0
 pypdf>=3.0
 pdfplumber
 Pillow
