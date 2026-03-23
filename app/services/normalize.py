@@ -53,14 +53,24 @@ def _tokenize_with_or(s: str) -> list[str]:
 
 
 def split_combined_ti(raw: str) -> tuple[str, str]:
-    """If raw contains 'T: ... I: ...' pattern, return (threshold, interval).
-    Otherwise return (raw, '') so caller can decide which field it belongs to."""
+    """Split raw into (threshold_part, interval_part).
+
+    Handles three patterns:
+      "T: X I: Y"  → (X, Y)
+      "I: Y"       → ("", Y)   ← interval-only cell
+      anything else → (raw, "") ← assume threshold or plain value
+    """
     if not raw:
         return "", ""
-    m = _T_THEN_I.match(raw.strip())
+    s = raw.strip()
+    # Combined T:/I: in one cell
+    m = _T_THEN_I.match(s)
     if m:
         return m.group(1).strip(), m.group(2).strip()
-    return raw.strip(), ""
+    # Cell starts with I: — it is purely an interval value
+    if _STARTS_I.match(s):
+        return "", re.sub(r'^I\s*:\s*', '', s, flags=re.IGNORECASE).strip()
+    return s, ""
 
 
 def extract_threshold_part(raw: str | None) -> str | None:

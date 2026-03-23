@@ -324,24 +324,27 @@ def import_mpd_excel_with_mapping(
                 applicability_raw = _get_mapped_val(row, col("effectivity"))
 
                 # T:/I: splitting logic:
-                # Case A: same column mapped to both fields (ATR combined format)
+                # Case A: same column mapped to both fields (ATR combined format).
+                # The cell may contain "T: X I: Y", "I: Y" (interval-only), or a plain value.
                 if same_col:
                     if threshold_raw:
                         t_part, i_part = split_combined_ti(threshold_raw)
                         if i_part:
+                            # Has interval part; threshold is t_part (may be empty for I:-only cells)
                             threshold_raw = t_part or None
                             interval_raw  = i_part
                         else:
-                            interval_raw = None   # no I: found; value goes to threshold only
+                            # No I: found — the whole value is treated as threshold
+                            interval_raw = None
                     else:
                         interval_raw = None
-                # Case B: threshold column has combined T:/I: but interval column is empty/unmapped
+                # Case B: separate columns; threshold cell has combined T:/I: but interval cell is empty
                 elif threshold_raw and not interval_raw:
                     t_part, i_part = split_combined_ti(threshold_raw)
                     if i_part:
                         threshold_raw = t_part or None
                         interval_raw  = i_part
-                # Case C: interval column has combined T:/I: but threshold is empty/unmapped
+                # Case C: separate columns; interval cell has combined T:/I: but threshold cell is empty
                 elif interval_raw and not threshold_raw:
                     t_part, i_part = split_combined_ti(interval_raw)
                     if i_part:
