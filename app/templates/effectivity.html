@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Effectivity Crosscheck – {{ project.msn }}{% endblock %}
+{% block content %}
+<div class="mb-5">
+  <a href="/projects/{{ project.id }}" class="text-sm text-gray-500 hover:text-dae mb-2 inline-block">← Back to project</a>
+  <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Effectivity Crosscheck</h1>
+  <p class="mt-1 text-gray-500 dark:text-gray-400">Project: <strong>{{ project.manufacturer }} {{ project.model }} – MSN {{ project.msn }}</strong></p>
+</div>
+
+{% if not has_mpd %}
+<div class="p-6 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
+  No MPD dataset linked to this project. Assign an MPD in the project settings first.
+</div>
+{% elif not condition_rows %}
+<div class="p-6 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-sm">
+  No effectivity conditions found in the linked MPD (no applicability tokens other than ALL).
+</div>
+{% else %}
+
+<div class="flex items-center justify-between mb-4 gap-4">
+  <p class="text-sm text-gray-500 dark:text-gray-400">
+    {{ condition_rows|length }} unique modification / configuration conditions extracted from the MPD.
+    Set YES (applicable to this MSN), NO (not applicable), or leave TBC.
+    Changes are saved automatically.
+  </p>
+  <input id="eff-search" type="text" placeholder="Filter conditions…"
+         class="w-52 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+         oninput="filterConditions(this.value)">
+</div>
+
+<div id="save-indicator" class="hidden fixed top-4 right-4 z-50 flex items-center gap-2 bg-green-600 text-white px-3 py-2 rounded-lg shadow-lg text-sm">
+  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+  Saved
+</div>
+
+<div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
+  <table class="w-full text-sm text-left text-gray-600 dark:text-gray-400">
+    <thead class="text-[11px] text-white uppercase bg-dae sticky top-0 z-10">
+      <tr>
+        <th class="px-4 py-3 w-8">#</th>
+        <th class="px-4 py-3">Condition / Token</th>
+        <th class="px-4 py-3 text-center w-24">MPD Tasks</th>
+        <th class="px-4 py-3 w-52">Applicable to MSN?</th>
+        <th class="px-4 py-3 w-40 text-right text-[10px] normal-case font-normal opacity-80">Last changed</th>
+      </tr>
+    </thead>
+    <tbody id="eff-tbody">
+      {% for row in condition_rows %}
+      {% set ans = row.answer %}
+      <tr class="border-b border-gray-100 dark:border-gray-700 eff-row" data-token="{{ row.token|lower }}">
+        <td class="px-4 py-2.5 text-gray-400 font-mono text-xs">{{ loop.index }}</td>
+        <td class="px-4 py-2.5 font-mono font-semibold text-gray-800 dark:text-gray-100">{{ row.token }}</td>
+        <td class="px-4 py-2.5 text-center">
+          {% if row.task_count > 0 %}
+          <button type="button"
+                  onclick="toggleTasks('tasks_{{ loop.index }}')"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-semibold hover:bg-blue-100 transition-colors"
+                  title="Show {{ row.task_count }} related tasks">
+            {{ row.task_count }}
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          {% else %}
+          <span class="text-gray-400">0</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-2.5">
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="setAnswer('{{ row.token }}', 'YES', this)"
+                    class="ans-btn px-3 py-1 rounded-full text-xs font-semibold border transition-colors
+                    {{ 'bg-green-100 border-green-400 text-green-800' if ans == 'YES' else 'bg-gray-50 border-gray-300 text-gray-600 hover:border-green-300 hover:bg-green-50' }}"
+                    data-token="{{ row.token }}" data-val="YES">YES</button>
+            <button type="button" onclick="setAnswer('{{ row.token }}', 'NO', this)"
+                    class="ans-btn px-3 py-1 rounded-full text-xs font-semibold border transition-colors
+                    {{ 'bg-red-100 border-red-400 text-red-800' if ans == 'NO' else 'bg-gray-50 border-gray-300 text-gray-600 hover:border-red-300 hover:bg-red-50' }}"
+                    data-token="{{ row.token }}" data-val="NO">NO</button>
+            <button type="button" onclick="setAnswer('{{ row.token }}', 'TBC', this)"
+                    class="ans-btn px-3 py-1 rounded-full text-xs font-semibold border transition-colors
+                    {{ 'bg-yellow-100 border-yellow-400 text-yellow-800' if ans == 'TBC' else 'bg-gray-50 border-gray-300 text-gray-600 hover:border-yellow-300 hover:bg-yellow-50' }}"
+                    data-token="{{ row.token }}" data-val="TBC">TBC</button>
+          </div>
+        </td>
+        <td class="px-4 py-2.5 text-right text-[11px] text-gray-400 font-mono" id="ts_{{ loop.index }}">{{ row.updated_at }}</td>
+      </tr>
+      {# Expandable task list #}
+      {% if row.tasks %}
+      <tr id="tasks_{{ loop.index }}" class="hidden bg-gray-50 dark:bg-gray-700/30">
+        <td colspan="5" class="px-8 py-3">
+          <div class="text-[11px] text-gray-500 font-semibold mb-1 uppercase tracking-wider">Related MPD tasks:</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1">
+            {% for t in row.tasks %}
+            <div class="flex items-start gap-1.5 text-[11px]">
+              <span class="font-mono text-amber-700 shrink-0">{{ t.item_no or t.ref }}</span>
+              <span class="text-gray-600 dark:text-gray-300 truncate">{{ t.title }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<script>
+const _projectId = {{ project_id }};
+let _saveTimer = null;
+
+function setAnswer(token, val, btnEl) {
+  // Update button styles immediately
+  const allBtns = document.querySelectorAll(`.ans-btn[data-token="${CSS.escape(token)}"]`);
+  const styles = {
+    YES: ['bg-green-100','border-green-400','text-green-800'],
+    NO:  ['bg-red-100','border-red-400','text-red-800'],
+    TBC: ['bg-yellow-100','border-yellow-400','text-yellow-800'],
+  };
+  allBtns.forEach(b => {
+    const bVal = b.dataset.val;
+    const active = styles[bVal] || [];
+    b.className = b.className
+      .replace(/bg-\w+-100|border-\w+-[34]00|text-\w+-800/g, '')
+      .trim();
+    if (bVal === val) {
+      b.classList.add(...active);
+    } else {
+      b.classList.add('bg-gray-50','border-gray-300','text-gray-600');
+    }
+  });
+
+  // Save to server
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    const fd = new FormData();
+    fd.append('token', token);
+    fd.append('answer', val);
+    const r = await fetch(`/projects/${_projectId}/effectivity/answer`, { method: 'POST', body: fd });
+    if (r.ok) {
+      const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+      // Find the timestamp cell for this row
+      document.querySelectorAll('.eff-row').forEach(row => {
+        if (row.dataset.token === token.toLowerCase()) {
+          const nextId = row.nextElementSibling?.id;
+          // Update the timestamp in the last cell
+          const tsCells = row.querySelectorAll('td');
+          if (tsCells.length >= 5) tsCells[4].textContent = now;
+        }
+      });
+      const ind = document.getElementById('save-indicator');
+      ind.classList.remove('hidden');
+      setTimeout(() => ind.classList.add('hidden'), 1500);
+    }
+  }, 300);
+}
+
+function toggleTasks(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('hidden');
+}
+
+function filterConditions(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.eff-row').forEach(row => {
+    const match = row.dataset.token.includes(q);
+    row.style.display = match ? '' : 'none';
+    // Also hide/show the sibling task row
+    const sibling = row.nextElementSibling;
+    if (sibling && sibling.id && sibling.id.startsWith('tasks_')) {
+      if (!match) sibling.style.display = 'none';
+    }
+  });
+}
+</script>
+{% endblock %}

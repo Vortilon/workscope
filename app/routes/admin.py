@@ -1,4 +1,4 @@
-"""Admin: user administration (admin-only)."""
+"""Admin: user and operator administration (admin-only)."""
 from pathlib import Path
 
 from fastapi import APIRouter, Request, Depends, Form
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.user import User
+from app.models.operator import Operator
 from app.auth import hash_password
 from app.routes.web import _require_login, _require_admin
 
@@ -204,3 +205,76 @@ async def user_delete(
         await db.delete(user)
         await db.commit()
     return RedirectResponse("/admin/users", status_code=303)
+
+
+# ── Operators ─────────────────────────────────────────────────────────────────
+
+@router.get("/operators", response_class=HTMLResponse)
+async def operators_list(request: Request, db: AsyncSession = Depends(get_db)):
+    if (r := _require_login(request)):
+        return r
+    if (r := _require_admin(request)):
+        return r
+    result = await db.execute(select(Operator).order_by(Operator.name))
+    operators = result.scalars().all()
+    return templates.TemplateResponse(request, "admin/operators.html", {"operators": operators, "error": ""})
+
+
+@router.post("/operators", response_class=HTMLResponse)
+async def operator_create(
+    request: Request,
+    name: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    if (r := _require_login(request)):
+        return r
+    if (r := _require_admin(request)):
+        return r
+    name = name.strip()
+    if not name:
+        result = await db.execute(select(Operator).order_by(Operator.name))
+        return templates.TemplateResponse(request, "admin/operators.html",
+                                          {"operators": result.scalars().all(), "error": "Name is required."})
+    existing = (await db.execute(select(Operator).where(Operator.name == name))).scalars().first()
+    if existing:
+        result = await db.execute(select(Operator).order_by(Operator.name))
+        return templates.TemplateResponse(request, "admin/operators.html",
+                                          {"operators": result.scalars().all(), "error": f'Operator "{name}" already exists.'})
+    db.add(Operator(name=name))
+    await db.commit()
+    return RedirectResponse("/admin/operators", status_code=303)
+
+
+@router.post("/operators/{op_id}/edit", response_class=HTMLResponse)
+async def operator_edit(
+    request: Request,
+    op_id: int,
+    name: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    if (r := _require_login(request)):
+        return r
+    if (r := _require_admin(request)):
+        return r
+    op = (await db.execute(select(Operator).where(Operator.id == op_id))).scalars().one_or_none()
+    if op:
+        op.name = name.strip()
+        await db.commit()
+    return RedirectResponse("/admin/operators", status_code=303)
+
+
+@router.post("/operators/{op_id}/delete", response_class=HTMLResponse)
+async def operator_delete(
+    request: Request,
+    op_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    if (r := _require_login(request)):
+        return r
+    if (r := _require_admin(request)):
+        return r
+    op = (await db.execute(select(Operator).where(Operator.id == op_id))).scalars().one_or_none()
+    if op:
+        await db.delete(op)
+        await db.commit()
+    return RedirectResponse("/admin/operators", status_code=303)

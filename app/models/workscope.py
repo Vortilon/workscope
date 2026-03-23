@@ -1,6 +1,6 @@
-"""Parsed workscope rows and match candidates/results. Per-project data only."""
+"""Parsed workscope rows, match candidates/results, and manual import rows. Per-project data only."""
 from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, String, Text, Integer, Float, JSON
+from sqlalchemy import DateTime, ForeignKey, String, Text, Integer, Float, JSON, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -59,3 +59,24 @@ class WorkscopeMatch(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     project: Mapped["Project"] = relationship("Project", back_populates="matches")
+
+
+class WorkscopeImportRow(Base):
+    """Structured row from a manually imported workscope (Excel or PDF), one per task line."""
+    __tablename__ = "workscope_import_rows"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    seq: Mapped[int] = mapped_column(Integer, nullable=True)             # import sequence (1-based)
+    source: Mapped[str] = mapped_column(String(16), default="excel")     # excel | pdf
+    task_ref: Mapped[str] = mapped_column(String(256), nullable=True, index=True)   # workscope own task number
+    mpd_ref: Mapped[str] = mapped_column(String(256), nullable=True, index=True)    # MPD task reference for crosscheck
+    description: Mapped[str] = mapped_column(Text, nullable=True)
+    zone: Mapped[str] = mapped_column(String(256), nullable=True)
+    section: Mapped[str] = mapped_column(String(128), nullable=True)
+    mh: Mapped[str] = mapped_column(String(64), nullable=True)           # man-hours
+    cost: Mapped[str] = mapped_column(String(64), nullable=True)
+    extra_raw: Mapped[dict] = mapped_column(JSON, nullable=True)         # all unmapped columns preserved
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    project: Mapped["Project"] = relationship("Project", back_populates="workscope_import_rows")

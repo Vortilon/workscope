@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Map PDF Workscope – {{ project.msn }}{% endblock %}
+{% block content %}
+<div class="mb-5">
+  <a href="/projects/{{ project.id }}/workscope/upload" class="text-sm text-gray-500 hover:text-dae mb-2 inline-block">← Re-upload</a>
+  <h1 class="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Map PDF Workscope Columns</h1>
+  <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">File: <strong>{{ filename }}</strong></p>
+</div>
+
+{% if preview %}
+<div class="mb-5 overflow-x-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm p-4">
+  <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Table preview (first rows)</p>
+  <table class="text-[11px] text-left text-gray-600 dark:text-gray-400 border-collapse">
+    {% for row in preview %}
+    <tr class="{{ 'bg-dae/10 font-semibold' if loop.first else 'border-b border-gray-100 dark:border-gray-700' }}">
+      {% for cell in row %}
+      <td class="px-2 py-1 border border-gray-200 dark:border-gray-600 max-w-[120px] truncate" title="{{ cell }}">{{ cell or '—' }}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% else %}
+<div class="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+  No tables could be extracted from the first pages. The PDF may be image-only (no embedded text). Try an Excel format or a text-layer PDF.
+</div>
+{% endif %}
+
+<form method="post" action="/projects/{{ project.id }}/workscope/pdf-run" class="space-y-4 max-w-xl">
+  <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 space-y-3">
+    <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Column Mapping</h2>
+    {% for fk in field_keys %}
+    {% set fl = field_labels[fk] %}
+    {% set guessed_idx = guessed.get(fk) %}
+    <div class="grid grid-cols-2 gap-3 items-center pb-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+      <label class="text-sm font-medium text-gray-900 dark:text-white">{{ fl }}</label>
+      <select name="col_{{ fk }}"
+              class="rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        <option value="">— Not mapped —</option>
+        {% for ci in col_infos %}
+        <option value="{{ ci.idx }}" {{ 'selected' if guessed_idx == ci.idx else '' }}>{{ ci.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endfor %}
+  </div>
+  <button type="submit"
+          class="text-white bg-dae hover:bg-dae/90 focus:ring-4 focus:ring-dae/30 font-medium rounded-lg text-sm px-6 py-2.5">
+    Import from PDF →
+  </button>
+</form>
+{% endblock %}

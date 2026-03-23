@@ -26,6 +26,7 @@ class ProjectCreate(BaseModel):
     model: str
     msn: str
     mpd_dataset_id: Optional[int] = None
+    operator_id: Optional[int] = None
     registration: Optional[str] = None
 
 
@@ -139,7 +140,14 @@ async def api_mpd_upload(
 
 @router.post("/projects")
 async def api_create_project(body: ProjectCreate, db: AsyncSession = Depends(get_db)):
-    p = Project(manufacturer=body.manufacturer, model=body.model, msn=body.msn, mpd_dataset_id=body.mpd_dataset_id, registration=body.registration)
+    p = Project(
+        manufacturer=body.manufacturer,
+        model=body.model,
+        msn=body.msn,
+        mpd_dataset_id=body.mpd_dataset_id,
+        operator_id=body.operator_id,
+        registration=body.registration,
+    )
     db.add(p)
     await db.flush()
     return {"id": p.id}

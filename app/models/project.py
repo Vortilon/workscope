@@ -13,6 +13,7 @@ class Project(Base):
     manufacturer: Mapped[str] = mapped_column(String(64), nullable=False)
     model: Mapped[str] = mapped_column(String(64), nullable=False)
     mpd_dataset_id: Mapped[int] = mapped_column(ForeignKey("mpd_datasets.id"), nullable=True, index=True)
+    operator_id: Mapped[int] = mapped_column(ForeignKey("operators.id"), nullable=True, index=True)
     msn: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     tsn: Mapped[str] = mapped_column(String(64), nullable=True)
     csn: Mapped[str] = mapped_column(String(64), nullable=True)
@@ -22,6 +23,7 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    operator: Mapped["Operator"] = relationship("Operator", back_populates="projects")
     files: Mapped[list["ProjectFile"]] = relationship("ProjectFile", back_populates="project", cascade="all, delete-orphan")
     parsed_rows: Mapped[list["ParsedWorkscopeRow"]] = relationship(
         "ParsedWorkscopeRow", back_populates="project", cascade="all, delete-orphan", foreign_keys="ParsedWorkscopeRow.project_id"
@@ -34,6 +36,9 @@ class Project(Base):
     )
     checks: Mapped[list["ProjectCheck"]] = relationship(
         "ProjectCheck", back_populates="project", cascade="all, delete-orphan"
+    )
+    workscope_import_rows: Mapped[list["WorkscopeImportRow"]] = relationship(
+        "WorkscopeImportRow", back_populates="project", cascade="all, delete-orphan"
     )
 
 
@@ -91,7 +96,21 @@ class ProjectConditionAnswer(Base):
     condition_token: Mapped[str] = mapped_column(String(128), nullable=False)
     answer: Mapped[str] = mapped_column(String(16), nullable=False)  # YES | NO | TBC
     source: Mapped[str] = mapped_column(String(64), nullable=True)  # user | evidence | system
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ConditionAnswerHistory(Base):
+    """Audit trail for changes to condition answers."""
+    __tablename__ = "condition_answer_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    condition_token: Mapped[str] = mapped_column(String(128), nullable=False)
+    old_answer: Mapped[str] = mapped_column(String(16), nullable=True)
+    new_answer: Mapped[str] = mapped_column(String(16), nullable=False)
+    changed_by: Mapped[str] = mapped_column(String(128), nullable=True)  # username
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class ModificationEvidenceFile(Base):

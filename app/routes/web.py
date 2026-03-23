@@ -2,17 +2,24 @@
 import json
 import re as _re
 import shutil
+from datetime import datetime
+from io import BytesIO
 from pathlib import Path
 from fastapi import APIRouter, Request, Depends, HTTPException, Form
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from openpyxl import Workbook
+from openpyxl.styles import PatternFill, Font, Alignment
+from openpyxl.utils import get_column_letter
 
 from app.config import MPD_STORAGE
 from app.database import get_db
 from app.models.mpd import MPDDataset, MPDTask
-from app.models.project import Project
+from app.models.operator import Operator
+from app.models.project import Project, ProjectConditionAnswer, ConditionAnswerHistory
+from app.models.workscope import WorkscopeImportRow
 from app.services.normalize import (
     normalize_applicability_tokens,
     threshold_tokens as _thr_tokens_fn,
@@ -115,16 +122,22 @@ async def project_list(request: Request, db: AsyncSession = Depends(get_db)):
         return r
     result = await db.execute(select(Project).order_by(Project.updated_at.desc()))
     projects = result.scalars().all()
-    return templates.TemplateResponse(request, "projects.html", {"projects": projects})
+    # Resolve operator names
+    op_ids = {p.operator_id for p in projects if p.operator_id}
+    op_map: dict[int, str] = {}
+    if op_ids:
+        ops_res = await db.execute(select(Operator).where(Operator.id.in_(op_ids)))
+        op_map = {o.id: o.name for o in ops_res.scalars().all()}
+    return templates.TemplateResponse(request, "projects.html", {"projects": projects, "op_map": op_map})
 
 
 @router.get("/projects/new", response_class=HTMLResponse)
 async def project_new(request: Request, db: AsyncSession = Depends(get_db)):
     if (r := _require_login(request)):
         return r
-    result = await db.execute(select(MPDDataset).order_by(MPDDataset.manufacturer))
-    datasets = result.scalars().all()
-    return templates.TemplateResponse(request, "project_new.html", {"datasets": datasets})
+    datasets = (await db.execute(select(MPDDataset).order_by(MPDDataset.manufacturer))).scalars().all()
+    operators = (await db.execute(select(Operator).order_by(Operator.name))).scalars().all()
+    return templates.TemplateResponse(request, "project_new.html", {"datasets": datasets, "operators": operators})
 
 
 @router.get("/projects/{project_id}", response_class=HTMLResponse)
@@ -135,7 +148,25 @@ async def project_detail(request: Request, project_id: int, db: AsyncSession = D
     project = result.scalars().one_or_none()
     if not project:
         raise HTTPException(404, "Project not found")
-    return templates.TemplateResponse(request, "project_detail.html", {"project": project})
+    operator_name = ""
+    if project.operator_id:
+        op = (await db.execute(select(Operator).where(Operator.id == project.operator_id))).scalars().one_or_none()
+        if op:
+            operator_name = op.name
+    dataset = None
+    if project.mpd_dataset_id:
+        dataset = (await db.execute(select(MPDDataset).where(MPDDataset.id == project.mpd_dataset_id))).scalars().one_or_none()
+    # Workscope import rows
+    ws_rows_res = await db.execute(
+        select(WorkscopeImportRow).where(WorkscopeImportRow.project_id == project_id).order_by(WorkscopeImportRow.seq)
+    )
+    ws_rows = ws_rows_res.scalars().all()
+    return templates.TemplateResponse(request, "project_detail.html", {
+        "project": project,
+        "operator_name": operator_name,
+        "dataset": dataset,
+        "ws_rows": ws_rows,
+    })
 
 
 @router.get("/mpd/{dataset_id}/download")
@@ -152,6 +183,135 @@ async def mpd_dataset_download(request: Request, dataset_id: int, db: AsyncSessi
                 media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
     raise HTTPException(404, "Source file not available")
+
+
+@router.get("/mpd/{dataset_id}/export")
+async def mpd_dataset_export(request: Request, dataset_id: int, db: AsyncSession = Depends(get_db)):
+    """Generate a formatted Excel export of an MPD dataset."""
+    if (r := _require_login(request)):
+        return r
+    ds = (await db.execute(select(MPDDataset).where(MPDDataset.id == dataset_id))).scalars().one_or_none()
+    if not ds:
+        raise HTTPException(404, "Dataset not found")
+    tasks_res = await db.execute(
+        select(MPDTask).where(MPDTask.dataset_id == dataset_id).order_by(MPDTask.row_index)
+    )
+    tasks = tasks_res.scalars().all()
+
+    wb = Workbook()
+    _DAE_FILL = PatternFill("solid", fgColor="C00000")
+    _WHITE_BOLD = Font(color="FFFFFF", bold=True, size=10)
+    _BOLD = Font(bold=True, size=10)
+    _NORMAL = Font(size=10)
+    _WRAP_TOP = Alignment(wrap_text=True, vertical="top")
+
+    # ── Sheet 1: Info ───────────────────────────────────────────────────────────
+    ws_info = wb.active
+    ws_info.title = "Info"
+    ws_info.merge_cells("A1:B1")
+    c = ws_info["A1"]
+    c.value = "MPD REFERENCE EXPORT — FOR REFERENCE ONLY"
+    c.fill = _DAE_FILL
+    c.font = Font(color="FFFFFF", bold=True, size=12)
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    ws_info.row_dimensions[1].height = 22
+
+    info_rows = [
+        ("Manufacturer", ds.manufacturer or ""),
+        ("Model", ds.model or ""),
+        ("Revision", ds.revision or ""),
+        ("Tasks imported", str(len(tasks))),
+        ("Export date", datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")),
+        ("Note", "This file is for reference only. Always verify against the current approved MPD."),
+    ]
+    for i, (k, v) in enumerate(info_rows, start=2):
+        ws_info.cell(row=i, column=1, value=k).font = _BOLD
+        cell = ws_info.cell(row=i, column=2, value=v)
+        cell.font = _NORMAL
+        cell.alignment = Alignment(wrap_text=True)
+    ws_info.column_dimensions["A"].width = 20
+    ws_info.column_dimensions["B"].width = 60
+
+    # ── Sheet 2: Tasks ──────────────────────────────────────────────────────────
+    ws = wb.create_sheet("Tasks")
+    headers = [
+        "#", "MPD ITEM #", "TASK REFERENCE", "SECTION",
+        "TITLE", "DESCRIPTION",
+        "THRESHOLD", "INTERVAL", "EFFECTIVITY",
+        "ZONE MH", "ACCESS MH", "PREP MH", "TOTAL MH", "SKILL",
+    ]
+    col_widths = [5, 14, 16, 10, 30, 40, 20, 20, 30, 8, 8, 8, 8, 14]
+
+    for ci, (h, w) in enumerate(zip(headers, col_widths), start=1):
+        cell = ws.cell(row=1, column=ci, value=h)
+        cell.fill = _DAE_FILL
+        cell.font = _WHITE_BOLD
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws.column_dimensions[get_column_letter(ci)].width = w
+    ws.row_dimensions[1].height = 20
+    ws.freeze_panes = "A2"
+
+    def _to_lines(raw: str | None) -> str:
+        """Convert comma/semicolon-separated values to one per line."""
+        if not raw:
+            return ""
+        import re as _r
+        parts = [p.strip() for p in _r.split(r"[,;]\s*", raw) if p.strip()]
+        return "\n".join(parts) if len(parts) > 1 else raw
+
+    for ri, t in enumerate(tasks, start=2):
+        try:
+            mh_z = float(t.zone_mh) if t.zone_mh else 0.0
+        except Exception:
+            mh_z = 0.0
+        try:
+            mh_a = float(t.access_mh) if t.access_mh else 0.0
+        except Exception:
+            mh_a = 0.0
+        try:
+            mh_p = float(t.preparation_mh) if t.preparation_mh else 0.0
+        except Exception:
+            mh_p = 0.0
+        mh_total = mh_z + mh_a + mh_p
+
+        row_vals = [
+            t.row_index,
+            t.mpd_item_number,
+            t.task_reference,
+            t.section,
+            t.title,
+            t.description,
+            _to_lines(t.threshold_raw),
+            _to_lines(t.interval_raw),
+            _to_lines(t.applicability_raw),
+            mh_z or None,
+            mh_a or None,
+            mh_p or None,
+            mh_total or None,
+            t.skill,
+        ]
+        max_lines = 1
+        for ci, val in enumerate(row_vals, start=1):
+            cell = ws.cell(row=ri, column=ci, value=val)
+            cell.font = _NORMAL
+            cell.alignment = _WRAP_TOP
+            if isinstance(val, str):
+                max_lines = max(max_lines, val.count("\n") + 1)
+        ws.row_dimensions[ri].height = max(14, min(max_lines * 13, 80))
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    safe_mfr = (ds.manufacturer or "").replace(" ", "_").replace("/", "-")
+    safe_mdl = (ds.model or "").replace(" ", "_").replace("/", "-")
+    safe_rev = (ds.revision or "").replace(" ", "_").replace("/", "-")
+    filename = f"MPD_{safe_mfr}_{safe_mdl}_{safe_rev}.xlsx"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/mpd/{dataset_id}/delete")
@@ -274,3 +434,119 @@ async def report_page(request: Request, project_id: int, db: AsyncSession = Depe
         request, "report.html",
         {"project": project, "summary": summary, "summary_json": summary_json},
     )
+
+
+# ── Effectivity crosscheck ────────────────────────────────────────────────────
+
+@router.get("/projects/{project_id}/effectivity", response_class=HTMLResponse)
+async def effectivity_view(request: Request, project_id: int, db: AsyncSession = Depends(get_db)):
+    if (r := _require_login(request)):
+        return r
+    project = (await db.execute(select(Project).where(Project.id == project_id))).scalars().one_or_none()
+    if not project:
+        raise HTTPException(404)
+
+    # Get all unique applicability tokens from the linked MPD dataset
+    token_task_map: dict[str, list[dict]] = {}
+    if project.mpd_dataset_id:
+        tasks_res = await db.execute(
+            select(MPDTask).where(
+                MPDTask.dataset_id == project.mpd_dataset_id,
+                MPDTask.applicability_tokens_normalized.isnot(None),
+            )
+        )
+        for t in tasks_res.scalars().all():
+            raw = t.applicability_tokens_normalized or ""
+            tokens = [tok.strip() for tok in raw.split(",") if tok.strip() and tok.strip().upper() != "ALL"]
+            for tok in tokens:
+                tok_up = tok.upper()
+                if tok_up not in token_task_map:
+                    token_task_map[tok_up] = []
+                token_task_map[tok_up].append({
+                    "id": t.id,
+                    "item_no": t.mpd_item_number or "",
+                    "ref": t.task_reference or "",
+                    "title": (t.title or "")[:80],
+                })
+
+    # Get current answers for this project
+    answers_res = await db.execute(
+        select(ProjectConditionAnswer).where(ProjectConditionAnswer.project_id == project_id)
+    )
+    answers = {a.condition_token: a for a in answers_res.scalars().all()}
+
+    conditions = sorted(token_task_map.keys())
+    condition_rows = []
+    for tok in conditions:
+        tasks_for_tok = token_task_map[tok]
+        ans = answers.get(tok)
+        condition_rows.append({
+            "token": tok,
+            "answer": ans.answer if ans else "TBC",
+            "updated_at": ans.updated_at.strftime("%Y-%m-%d %H:%M") if ans and ans.updated_at else "",
+            "task_count": len(tasks_for_tok),
+            "tasks": tasks_for_tok,
+        })
+
+    return templates.TemplateResponse(request, "effectivity.html", {
+        "project": project,
+        "condition_rows": condition_rows,
+        "project_id": project_id,
+        "has_mpd": bool(project.mpd_dataset_id),
+    })
+
+
+@router.post("/projects/{project_id}/effectivity/answer")
+async def effectivity_set_answer(
+    request: Request,
+    project_id: int,
+    token: str = Form(...),
+    answer: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    if (r := _require_login(request)):
+        return r
+    project = (await db.execute(select(Project).where(Project.id == project_id))).scalars().one_or_none()
+    if not project:
+        raise HTTPException(404)
+
+    answer = answer.upper()
+    if answer not in ("YES", "NO", "TBC"):
+        raise HTTPException(422, "answer must be YES, NO, or TBC")
+
+    username = request.session.get("username", "")
+
+    existing = (await db.execute(
+        select(ProjectConditionAnswer).where(
+            ProjectConditionAnswer.project_id == project_id,
+            ProjectConditionAnswer.condition_token == token,
+        )
+    )).scalars().one_or_none()
+
+    old_answer = existing.answer if existing else None
+
+    if existing:
+        existing.answer = answer
+        existing.source = "user"
+        from datetime import datetime
+        existing.updated_at = datetime.utcnow()
+    else:
+        db.add(ProjectConditionAnswer(
+            project_id=project_id,
+            condition_token=token,
+            answer=answer,
+            source="user",
+        ))
+
+    # Record history
+    if old_answer != answer:
+        db.add(ConditionAnswerHistory(
+            project_id=project_id,
+            condition_token=token,
+            old_answer=old_answer,
+            new_answer=answer,
+            changed_by=username,
+        ))
+
+    await db.commit()
+    return {"ok": True, "token": token, "answer": answer}

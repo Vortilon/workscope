@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Workscope Imported – {{ project.msn }}{% endblock %}
+{% block content %}
+<div class="max-w-lg mx-auto pt-10 text-center">
+  <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
+    <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+    </svg>
+  </div>
+  <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Workscope Imported</h1>
+  <p class="mt-2 text-gray-500 dark:text-gray-400">
+    <strong>{{ imported }}</strong> task rows imported from {{ source|upper }}.
+  </p>
+  {% if errors %}
+  <div class="mt-4 text-left bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+    <strong>{{ errors|length }} warning(s):</strong>
+    <ul class="mt-1 list-disc pl-5 space-y-0.5">
+      {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+  <div class="mt-6 flex justify-center gap-3">
+    <a href="/projects/{{ project.id }}"
+       class="inline-flex items-center px-5 py-2.5 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90">
+      View Project
+    </a>
+    <a href="/projects/{{ project.id }}/workscope/upload"
+       class="inline-flex items-center px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600">
+      Import Again
+    </a>
+  </div>
+</div>
+{% endblock %}

@@ -11,10 +11,20 @@
       {{ tasks|length }} tasks loaded.
     </p>
   </div>
-  <a href="/mpd"
-     class="inline-flex items-center px-3 py-1.5 rounded-md border border-gray-300 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600">
-    ← MPD library
-  </a>
+  <div class="flex items-center gap-2">
+    <a href="/mpd/{{ dataset.id }}/export"
+       title="Export to Excel (for reference only)"
+       class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-green-300 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300 dark:border-green-700">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+      </svg>
+      Export Excel
+    </a>
+    <a href="/mpd"
+       class="inline-flex items-center px-3 py-1.5 rounded-md border border-gray-300 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600">
+      ← MPD library
+    </a>
+  </div>
 </div>
 
 {# ── Filter panel ── #}

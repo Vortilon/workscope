@@ -2,8 +2,10 @@
 from app.models.audit import AuditLog
 from app.models.user import User
 from app.models.mpd import MPDDataset, MPDTask
+from app.models.operator import Operator
 from app.models.project import (
     ApplicabilityCondition,
+    ConditionAnswerHistory,
     Project,
     ProjectCheck,
     ProjectConditionAnswer,
@@ -14,12 +16,14 @@ from app.models.workscope import (
     ParsedWorkscopeRow,
     WorkscopeMatch,
     WorkscopeMatchCandidate,
+    WorkscopeImportRow,
 )
 from app.models.report import ProjectReport
 from app.models.aviation_document import AviationDocument, AviationDocumentTask, AviationDocumentPart
 
 __all__ = [
     "User",
+    "Operator",
     "MPDDataset",
     "MPDTask",
     "Project",
@@ -28,8 +32,10 @@ __all__ = [
     "ParsedWorkscopeRow",
     "WorkscopeMatchCandidate",
     "WorkscopeMatch",
+    "WorkscopeImportRow",
     "ApplicabilityCondition",
     "ProjectConditionAnswer",
+    "ConditionAnswerHistory",
     "ModificationEvidenceFile",
     "ProjectReport",
     "AuditLog",

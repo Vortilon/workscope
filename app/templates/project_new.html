@@ -33,6 +33,15 @@
         {% endfor %}
       </select>
     </div>
+    <div>
+      <label for="operator_id" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Operator</label>
+      <select id="operator_id" name="operator_id" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        <option value="">— Select operator —</option>
+        {% for op in operators %}
+        <option value="{{ op.id }}">{{ op.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <button type="submit" class="text-white bg-dae hover:bg-dae/90 focus:ring-4 focus:ring-dae/30 font-medium rounded-lg text-sm px-5 py-2.5">Create Project</button>
   </form>
 </div>
@@ -46,7 +55,8 @@ document.getElementById('project-form').addEventListener('submit', async (e) => 
     model: fd.get('model'),
     msn: fd.get('msn'),
     registration: fd.get('registration') || null,
-    mpd_dataset_id: fd.get('mpd_dataset_id') ? parseInt(fd.get('mpd_dataset_id')) : null
+    mpd_dataset_id: fd.get('mpd_dataset_id') ? parseInt(fd.get('mpd_dataset_id')) : null,
+    operator_id: fd.get('operator_id') ? parseInt(fd.get('operator_id')) : null,
   };
   const r = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json();

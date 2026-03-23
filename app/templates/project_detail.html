@@ -9,19 +9,223 @@
   {% if project.mpd_dataset_id %}data-dataset-id="{{ project.mpd_dataset_id }}"{% endif %}
 ></div>
 
-<div class="mb-6">
-  <a href="/projects" class="text-sm text-gray-500 hover:text-dae dark:text-gray-400 dark:hover:text-dae mb-2 inline-block">← Projects</a>
-  <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Project: {{ project.msn }}</h1>
-  <p class="mt-1 text-gray-500 dark:text-gray-400">{{ project.manufacturer }} {{ project.model }} · Status: <span class="font-medium text-gray-700 dark:text-gray-300">{{ project.status }}</span></p>
+{# ── Header ──────────────────────────────────────────────────────────────── #}
+<div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
+  <div>
+    <a href="/projects" class="text-sm text-gray-500 hover:text-dae mb-1 inline-block">← Projects</a>
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
+      {{ project.manufacturer }} {{ project.model }}
+      <span class="font-mono text-dae">{{ project.msn }}</span>
+    </h1>
+    <div class="flex flex-wrap items-center gap-3 mt-1 text-sm text-gray-500 dark:text-gray-400">
+      {% if project.registration %}<span class="font-medium text-gray-700 dark:text-gray-300">{{ project.registration }}</span>{% endif %}
+      {% if operator_name %}<span>· {{ operator_name }}</span>{% endif %}
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">{{ project.status }}</span>
+      {% if dataset %}<span>· MPD: {{ dataset.manufacturer }} {{ dataset.model }} {{ dataset.revision }}</span>{% endif %}
+    </div>
+  </div>
+  <a href="/report/{{ project.id }}"
+     class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90 shrink-0">
+    View Report
+  </a>
 </div>
 
-<div class="flex flex-wrap gap-3 mb-6">
-  <a href="/report/{{ project.id }}" class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90 focus:ring-4 focus:ring-dae/30">View Report</a>
-  <button type="button" class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-700 dark:hover:bg-gray-700" hx-post="/api/projects/{{ project.id }}/match" hx-swap="none" hx-trigger="click" hx-on::after-request="if(event.detail.successful) alert('Matching complete')">Re-run matching</button>
+{# ── Tabs ─────────────────────────────────────────────────────────────────── #}
+<div class="border-b border-gray-200 dark:border-gray-700 mb-5">
+  <nav class="-mb-px flex space-x-1" id="tabs-nav">
+    <button onclick="showTab('overview')" id="tab-btn-overview"
+            class="tab-btn active px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 border-dae text-dae bg-red-50 dark:bg-gray-700">
+      Overview
+    </button>
+    <button onclick="showTab('workscope')" id="tab-btn-workscope"
+            class="tab-btn px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 border-transparent text-gray-600 hover:text-dae hover:border-dae dark:text-gray-400">
+      Workscope <span class="ml-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded-full">{{ ws_rows|length }}</span>
+    </button>
+    <button onclick="showTab('effectivity')" id="tab-btn-effectivity"
+            class="tab-btn px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 border-transparent text-gray-600 hover:text-dae hover:border-dae dark:text-gray-400">
+      Effectivity
+    </button>
+    <button onclick="showTab('oem')" id="tab-btn-oem"
+            class="tab-btn px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 border-transparent text-gray-600 hover:text-dae hover:border-dae dark:text-gray-400">
+      OEM Modifications
+    </button>
+  </nav>
 </div>
 
-<div class="p-5 bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700">
-  <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">Upload workscope</h2>
-  <p class="text-sm text-gray-500 dark:text-gray-400">Use API: <code class="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">POST /api/projects/{{ project.id }}/workscope/upload</code> with file.</p>
+{# ── Tab: Overview ────────────────────────────────────────────────────────── #}
+<div id="tab-overview" class="tab-content">
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
+    {# Quick stats #}
+    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">MSN</div>
+      <div class="text-xl font-bold text-gray-900 dark:text-white font-mono">{{ project.msn }}</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Operator</div>
+      <div class="text-base font-semibold text-gray-900 dark:text-white">{{ operator_name or '—' }}</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">MPD Dataset</div>
+      <div class="text-sm font-medium text-gray-900 dark:text-white">
+        {% if dataset %}<a href="/mpd/{{ dataset.id }}" class="hover:text-dae hover:underline">{{ dataset.manufacturer }} {{ dataset.model }} {{ dataset.revision }}</a>
+        {% else %}—{% endif %}
+      </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Workscope rows</div>
+      <div class="text-xl font-bold text-gray-900 dark:text-white">{{ ws_rows|length }}</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Registration</div>
+      <div class="text-base font-semibold text-gray-900 dark:text-white">{{ project.registration or '—' }}</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Created</div>
+      <div class="text-sm text-gray-700 dark:text-gray-300">{{ project.created_at.strftime('%Y-%m-%d') if project.created_at else '—' }}</div>
+    </div>
+  </div>
+
+  <div class="flex flex-wrap gap-3">
+    <a href="/projects/{{ project.id }}/workscope/upload"
+       class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      Import Workscope
+    </a>
+    <a href="/projects/{{ project.id }}/effectivity"
+       class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600">
+      Effectivity Crosscheck →
+    </a>
+  </div>
 </div>
+
+{# ── Tab: Workscope ───────────────────────────────────────────────────────── #}
+<div id="tab-workscope" class="tab-content hidden">
+  <div class="flex items-center justify-between mb-3 gap-3">
+    <div class="flex items-center gap-3">
+      <h2 class="text-base font-semibold text-gray-900 dark:text-white">Imported Workscope Tasks</h2>
+      {% if ws_rows %}
+      <span class="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full font-mono">{{ ws_rows|length }} rows</span>
+      {% endif %}
+    </div>
+    <a href="/projects/{{ project.id }}/workscope/upload"
+       class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-dae rounded-lg hover:bg-dae/90">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      {{ 'Re-import' if ws_rows else 'Import Workscope' }}
+    </a>
+  </div>
+
+  {% if not ws_rows %}
+  <div class="p-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-center text-gray-500 dark:text-gray-400">
+    No workscope imported yet. Click <strong>Import Workscope</strong> to upload an Excel or PDF file.
+  </div>
+  {% else %}
+  <div class="mb-3">
+    <input id="ws-search" type="text" placeholder="Search task ref, MPD ref, description…"
+           class="w-full sm:w-80 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+           oninput="filterWs(this.value)">
+  </div>
+  <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs text-left text-gray-600 dark:text-gray-400" style="table-layout:fixed">
+        <colgroup>
+          <col style="width:5%">
+          <col style="width:12%">
+          <col style="width:14%">
+          <col style="width:30%">
+          <col style="width:10%">
+          <col style="width:10%">
+          <col style="width:9%">
+          <col style="width:10%">
+        </colgroup>
+        <thead class="text-[11px] text-white uppercase bg-dae sticky top-0 z-10">
+          <tr>
+            <th class="px-2 py-2.5">#</th>
+            <th class="px-2 py-2.5">Task Ref</th>
+            <th class="px-2 py-2.5">MPD Ref</th>
+            <th class="px-2 py-2.5">Description</th>
+            <th class="px-2 py-2.5">Zone</th>
+            <th class="px-2 py-2.5">Section</th>
+            <th class="px-2 py-2.5 text-right">MH</th>
+            <th class="px-2 py-2.5 text-right">Cost</th>
+          </tr>
+        </thead>
+        <tbody id="ws-tbody">
+          {% for r in ws_rows %}
+          <tr class="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40 ws-row">
+            <td class="px-2 py-1.5 text-gray-400 font-mono">{{ r.seq }}</td>
+            <td class="px-2 py-1.5 font-mono font-semibold text-amber-700 dark:text-amber-400" style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="{{ r.task_ref or '' }}">{{ r.task_ref or '—' }}</td>
+            <td class="px-2 py-1.5 font-mono text-blue-700 dark:text-blue-400" style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis" title="{{ r.mpd_ref or '' }}">{{ r.mpd_ref or '—' }}</td>
+            <td class="px-2 py-1.5" style="overflow:hidden;word-break:break-word">{{ r.description or '' }}</td>
+            <td class="px-2 py-1.5" style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">{{ r.zone or '' }}</td>
+            <td class="px-2 py-1.5 font-mono text-gray-500" style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">{{ r.section or '' }}</td>
+            <td class="px-2 py-1.5 text-right font-mono">{{ r.mh or '' }}</td>
+            <td class="px-2 py-1.5 text-right font-mono">{{ r.cost or '' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{# ── Tab: Effectivity ─────────────────────────────────────────────────────── #}
+<div id="tab-effectivity" class="tab-content hidden">
+  <div class="p-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-center">
+    <svg class="w-10 h-10 text-dae mx-auto mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+    </svg>
+    <h3 class="text-base font-semibold text-gray-900 dark:text-white mb-2">Effectivity Crosscheck</h3>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Review and mark which MPD applicability conditions apply to this MSN.</p>
+    <a href="/projects/{{ project.id }}/effectivity"
+       class="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90">
+      Open Effectivity Crosscheck →
+    </a>
+  </div>
+</div>
+
+{# ── Tab: OEM Modifications ───────────────────────────────────────────────── #}
+<div id="tab-oem" class="tab-content hidden">
+  <div class="p-8 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-center">
+    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-orange-100 dark:bg-orange-900/20 mb-4">
+      <svg class="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437l1.745-1.437m6.615 8.206L15.75 15.75M4.867 19.125h.008v.008h-.008v-.008z"/>
+      </svg>
+    </div>
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">OEM Modifications</h3>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-2 max-w-md mx-auto">
+      Upload OEM modification documentation (PDF) to extract and cross-reference modification status against the MPD.
+    </p>
+    <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-50 border border-orange-200 text-orange-700 text-sm font-medium mb-4">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Coming soon — AI-assisted OEM mod parsing
+    </div>
+    <p class="text-xs text-gray-400 dark:text-gray-500">
+      Planned: upload the aircraft modification record (PDF), auto-extract SB/mod references using AI,
+      and automatically populate the Effectivity Crosscheck table.
+    </p>
+  </div>
+</div>
+
+<script>
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.remove('border-dae','text-dae','bg-red-50','dark:bg-gray-700');
+    btn.classList.add('border-transparent','text-gray-600');
+  });
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  const btn = document.getElementById('tab-btn-' + name);
+  btn.classList.remove('border-transparent','text-gray-600');
+  btn.classList.add('border-dae','text-dae','bg-red-50','dark:bg-gray-700');
+}
+
+function filterWs(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('.ws-row').forEach(row => {
+    const text = row.textContent.toLowerCase();
+    row.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+</script>
 {% endblock %}

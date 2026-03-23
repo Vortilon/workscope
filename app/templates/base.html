@@ -87,9 +87,15 @@
         </li>
         {% if request.session.get('role') == 'admin' %}
         <li>
-          <a href="/admin/users" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if request.url.path.startswith('/admin') %}bg-red-50 dark:bg-gray-700 border-l-4 border-dae{% endif %}">
+          <a href="/admin/users" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if request.url.path == '/admin/users' %}bg-red-50 dark:bg-gray-700 border-l-4 border-dae{% endif %}">
             <svg class="w-5 h-5 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-dae" fill="currentColor" viewBox="0 0 20 20"><path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 7a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1V7z"/></svg>
             <span class="ms-3">User administration</span>
+          </a>
+        </li>
+        <li>
+          <a href="/admin/operators" class="flex items-center p-2 text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group {% if request.url.path.startswith('/admin/operators') %}bg-red-50 dark:bg-gray-700 border-l-4 border-dae{% endif %}">
+            <svg class="w-5 h-5 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-dae" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+            <span class="ms-3">Operators</span>
           </a>
         </li>
         {% endif %}
@@ -378,29 +384,78 @@
       if (!q) return;
       input.value = '';
       input.style.height = '';
+      const welcome = document.getElementById('perkins-welcome');
+      if (welcome) welcome.remove();
       appendMsg('user', q.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'));
       document.getElementById('perkins-typing').classList.remove('hidden');
       msgs.scrollTop = msgs.scrollHeight;
       document.getElementById('perkins-send-btn').disabled = true;
       input.disabled = true;
+
       try {
-        const body = { query: q, dataset_id: _datasetId, context: _ctx };
-        const r = await fetch('/api/perkins/query', {
+        const resp = await fetch('/api/perkins/stream', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ query: q, dataset_id: _datasetId, context: _ctx }),
         });
+
         document.getElementById('perkins-typing').classList.add('hidden');
-        if (!r.ok) {
-          const err = await r.json().catch(() => ({ detail: 'Server error ' + r.status }));
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ detail: 'Server error ' + resp.status }));
           appendMsg('ai', '<span class="text-red-600">⚠ ' + (err.detail || 'Error') + '</span>');
-        } else {
-          const data = await r.json();
-          appendMsg('ai', formatAnswer(data));
+          return;
+        }
+
+        // Create a streaming bubble
+        const wrap = document.createElement('div');
+        wrap.className = 'flex justify-start';
+        const bubble = document.createElement('div');
+        bubble.className = 'msg-ai max-w-[88%] px-3 py-2 text-sm leading-relaxed';
+        wrap.appendChild(bubble);
+        msgs.appendChild(wrap);
+
+        const reader = resp.body.getReader();
+        const dec = new TextDecoder();
+        let buf = '';
+        let full = '';
+
+        function renderBubble() {
+          let html = full
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+            .replace(/\n{2,}/g,'</p><p class="mt-1">')
+            .replace(/\n/g,'<br>');
+          bubble.innerHTML = '<p>' + html + '</p>';
+          msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.token) { full += data.token; renderBubble(); }
+              if (data.done && data.mpd_reference_source) {
+                bubble.innerHTML += `<div class="perkins-source-badge">✓ ${data.mpd_reference_source} · ${data.mpd_task_count} task${data.mpd_task_count !== 1 ? 's' : ''}</div>`;
+              }
+              if (data.error) {
+                bubble.innerHTML = '<span class="text-red-600">⚠ ' + data.error.replace(/</g,'&lt;') + '</span>';
+              }
+            } catch(e) {}
+          }
+        }
+        if (!full && bubble.innerHTML === '') {
+          bubble.innerHTML = '<span class="text-red-600">⚠ No response received. Perkins may still be loading.</span>';
         }
       } catch (e) {
         document.getElementById('perkins-typing').classList.add('hidden');
-        appendMsg('ai', '<span class="text-red-600">⚠ Could not reach Perkins. Check connection.</span>');
+        appendMsg('ai', '<span class="text-red-600">⚠ Could not reach Perkins.</span>');
       } finally {
         document.getElementById('perkins-send-btn').disabled = false;
         input.disabled = false;

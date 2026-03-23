@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Map Workscope Columns – {{ project.msn }}{% endblock %}
+{% block content %}
+<div class="mb-5">
+  <a href="/projects/{{ project.id }}/workscope/upload" class="text-sm text-gray-500 hover:text-dae mb-2 inline-block">← Re-upload</a>
+  <h1 class="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Map Workscope Columns</h1>
+  <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">File: <strong>{{ filename }}</strong> · Sheet: <strong>{{ active_sheet }}</strong> · ~{{ total_data_rows }} data rows</p>
+</div>
+
+<form method="post" action="/projects/{{ project.id }}/workscope/run" class="space-y-4">
+  <input type="hidden" name="sheet" value="{{ active_sheet }}">
+  <input type="hidden" name="header_row" id="header_row_input" value="{{ header_row }}">
+
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+
+    {# ── Left: options ─────────────────────────────────────────────────── #}
+    <div class="lg:col-span-1 space-y-4">
+
+      {# Sheet selector #}
+      {% if sheets|length > 1 %}
+      <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Sheet</label>
+        {% for sname in sheets %}
+        <a href="?sheet={{ sname }}&header_row={{ header_row }}"
+           class="block px-3 py-1.5 rounded-lg text-sm mb-1 {{ 'bg-dae text-white' if sname == active_sheet else 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700' }}">
+          {{ sname }}
+          <span class="text-xs opacity-70">({{ sheets_summary.get(sname, 0) }} rows)</span>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {# Header row selector #}
+      <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+        <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Header Row</label>
+        <div class="flex items-center gap-2">
+          <input type="number" id="header_row_ui" value="{{ header_row + 1 }}" min="1"
+                 class="w-20 rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                 onchange="changeHeaderRow(this.value)">
+          <span class="text-xs text-gray-500">(row {{ header_row + 1 }})</span>
+        </div>
+        <p class="text-[11px] text-gray-400 mt-1">Adjust if column names are not detected correctly.</p>
+      </div>
+
+    </div>
+
+    {# ── Right: column mapping ─────────────────────────────────────────── #}
+    <div class="lg:col-span-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
+      <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Column Mapping</h2>
+
+      <div class="space-y-3">
+        {% for fk in field_keys %}
+        {% set fl = field_labels[fk] %}
+        {% set guessed_idx = guessed.get(fk) %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start pb-3 border-b border-gray-100 dark:border-gray-700 last:border-0">
+          <div>
+            <label class="block text-sm font-medium text-gray-900 dark:text-white">{{ fl }}</label>
+            {% if fk == 'mpd_ref' %}<p class="text-[11px] text-dae font-medium mt-0.5">Key field for MPD crosscheck</p>{% endif %}
+          </div>
+          <div>
+            <select name="col_{{ fk }}" id="sel_{{ fk }}"
+                    class="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                    onchange="updateSample('{{ fk }}', this.value)">
+              <option value="">— Not mapped —</option>
+              {% for ci in col_infos %}
+              <option value="{{ ci.idx }}"
+                {{ 'selected' if guessed_idx == ci.idx else '' }}
+                {% if ci.fill_pct < 30 %}class="text-orange-500"{% endif %}>
+                {{ ci.label }}{% if ci.fill_pct < 30 %} ⚠ {{ ci.fill_pct }}% filled{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            <p id="sample_{{ fk }}" class="text-[11px] text-gray-500 mt-1 truncate italic">
+              {% if guessed_idx is not none %}
+                Sample: {{ col_infos[guessed_idx].sample if guessed_idx < col_infos|length else '—' }}
+              {% endif %}
+            </p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <button type="submit"
+              class="mt-5 text-white bg-dae hover:bg-dae/90 focus:ring-4 focus:ring-dae/30 font-medium rounded-lg text-sm px-6 py-2.5">
+        Import {{ total_data_rows }} rows →
+      </button>
+    </div>
+
+  </div>
+</form>
+
+<script>
+const colSamples = {
+  {% for ci in col_infos %}
+  {{ ci.idx }}: "{{ ci.sample | replace('"', '\\"') | replace('\n', ' ') }}",
+  {% endfor %}
+};
+
+function updateSample(fk, val) {
+  const el = document.getElementById('sample_' + fk);
+  if (!el) return;
+  const v = parseInt(val);
+  if (isNaN(v) || !(v in colSamples)) { el.textContent = ''; return; }
+  el.textContent = 'Sample: ' + (colSamples[v] || '—');
+}
+
+function changeHeaderRow(val) {
+  const row = Math.max(1, parseInt(val) || 1) - 1;
+  const sheet = '{{ active_sheet }}';
+  window.location.href = '/projects/{{ project.id }}/workscope/mapping?sheet=' + encodeURIComponent(sheet) + '&header_row=' + row;
+}
+</script>
+{% endblock %}

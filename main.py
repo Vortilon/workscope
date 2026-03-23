@@ -13,6 +13,7 @@ from app.database import get_db
 from app.routes import web, api, evidence, auth, admin, mpd_import_routes
 from app.routes.aviation_docs import router as aviation_docs_router
 from app.routes.perkins import router as perkins_router
+from app.routes.workscope_import import router as workscope_import_router
 from app.auth import ensure_admin_seed
 
 
@@ -44,6 +45,7 @@ app.include_router(api.router)
 app.include_router(evidence.router)
 app.include_router(aviation_docs_router)
 app.include_router(perkins_router)
+app.include_router(workscope_import_router)
 
 
 @app.get("/health")
