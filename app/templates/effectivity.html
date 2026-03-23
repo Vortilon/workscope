@@ -81,16 +81,62 @@
         </td>
         <td class="px-4 py-2.5 text-right text-[11px] text-gray-400 font-mono" id="ts_{{ loop.index }}">{{ row.updated_at }}</td>
       </tr>
-      {# Expandable task list #}
+      {# Expandable task list — full detail cards #}
       {% if row.tasks %}
       <tr id="tasks_{{ loop.index }}" class="hidden bg-gray-50 dark:bg-gray-700/30">
-        <td colspan="5" class="px-8 py-3">
-          <div class="text-[11px] text-gray-500 font-semibold mb-1 uppercase tracking-wider">Related MPD tasks:</div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1">
+        <td colspan="5" class="px-6 py-4">
+          <div class="text-[11px] text-gray-500 font-semibold mb-3 uppercase tracking-wider">
+            {{ row.task_count }} MPD task{{ 's' if row.task_count != 1 else '' }} affected by condition <span class="text-dae">{{ row.token }}</span>
+          </div>
+          <div class="space-y-2">
             {% for t in row.tasks %}
-            <div class="flex items-start gap-1.5 text-[11px]">
-              <span class="font-mono text-amber-700 shrink-0">{{ t.item_no or t.ref }}</span>
-              <span class="text-gray-600 dark:text-gray-300 truncate">{{ t.title }}</span>
+            <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-3 text-xs">
+              {# Header row: item/ref + section badge + skill badge + MH #}
+              <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                <span class="font-mono font-bold text-amber-700 dark:text-amber-400 text-sm">{{ t.item_no or t.ref }}</span>
+                {% if t.item_no and t.ref and t.item_no != t.ref %}
+                <span class="font-mono text-gray-400 text-[11px]">{{ t.ref }}</span>
+                {% endif %}
+                {% if t.section %}
+                <span class="inline-flex items-center rounded bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 text-[10px] font-semibold">ATA {{ t.section }}</span>
+                {% endif %}
+                {% if t.skill %}
+                <span class="inline-flex items-center rounded bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 text-[10px]">{{ t.skill }}</span>
+                {% endif %}
+                {% if t.mh_total %}
+                <span class="inline-flex items-center rounded bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 text-[10px]">{{ "%.1f"|format(t.mh_total) }} MH</span>
+                {% endif %}
+              </div>
+              {# Title + description #}
+              {% if t.title %}
+              <p class="font-semibold text-gray-800 dark:text-gray-100 mb-0.5">{{ t.title }}</p>
+              {% endif %}
+              {% if t.description and t.description != t.title %}
+              <p class="text-gray-500 dark:text-gray-400 leading-snug">{{ t.description }}</p>
+              {% endif %}
+              {# Threshold / Interval / Effectivity #}
+              {% if t.threshold_raw or t.interval_raw or t.applicability_raw %}
+              <div class="mt-2 flex flex-wrap gap-3 text-[11px]">
+                {% if t.threshold_raw %}
+                <div>
+                  <span class="text-gray-400 uppercase tracking-wide font-semibold">Threshold&nbsp;</span>
+                  <span class="font-mono text-gray-700 dark:text-gray-300">{{ t.threshold_raw }}</span>
+                </div>
+                {% endif %}
+                {% if t.interval_raw %}
+                <div>
+                  <span class="text-gray-400 uppercase tracking-wide font-semibold">Interval&nbsp;</span>
+                  <span class="font-mono text-gray-700 dark:text-gray-300">{{ t.interval_raw }}</span>
+                </div>
+                {% endif %}
+                {% if t.applicability_raw %}
+                <div>
+                  <span class="text-gray-400 uppercase tracking-wide font-semibold">Effectivity&nbsp;</span>
+                  <span class="font-mono text-gray-700 dark:text-gray-300">{{ t.applicability_raw }}</span>
+                </div>
+                {% endif %}
+              </div>
+              {% endif %}
             </div>
             {% endfor %}
           </div>

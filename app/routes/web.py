@@ -477,9 +477,17 @@ async def effectivity_view(request: Request, project_id: int, db: AsyncSession =
                 MPDTask.applicability_tokens_normalized.isnot(None),
             )
         )
+        def _safe_float(v):
+            try:
+                return float(v) if v else None
+            except Exception:
+                return None
+
         for t in tasks_res.scalars().all():
             raw = t.applicability_tokens_normalized or ""
             tokens = [tok.strip() for tok in raw.split(",") if tok.strip() and tok.strip().upper() != "ALL"]
+            mh_parts = [_safe_float(t.zone_mh), _safe_float(t.access_mh), _safe_float(t.preparation_mh)]
+            mh_total = sum(v for v in mh_parts if v) or None
             for tok in tokens:
                 tok_up = tok.upper()
                 if tok_up not in token_task_map:
@@ -488,7 +496,14 @@ async def effectivity_view(request: Request, project_id: int, db: AsyncSession =
                     "id": t.id,
                     "item_no": t.mpd_item_number or "",
                     "ref": t.task_reference or "",
-                    "title": (t.title or "")[:80],
+                    "section": t.section or "",
+                    "title": t.title or "",
+                    "description": t.description or "",
+                    "threshold_raw": t.threshold_raw or "",
+                    "interval_raw": t.interval_raw or "",
+                    "applicability_raw": t.applicability_raw or "",
+                    "skill": t.skill or "",
+                    "mh_total": mh_total,
                 })
 
     # Get current answers for this project
