@@ -350,10 +350,22 @@ async def import_run(
             combined_map.update(cfg.get("column_map", {}))
         _save_manufacturer_mapping(manufacturer, combined_map)
 
+    ext = request.session.get("mpd_import_ext", ".xlsx")
     ds = await create_dataset(db, manufacturer, model, revision, None, path.name)
     total, results = import_mpd_excel_with_mapping(db, ds.id, path, sheet_configs)
     await set_dataset_done(db, ds.id)
     await db.commit()
+
+    # Save a permanent copy of the source file for future download/reference
+    from app.config import MPD_STORAGE
+    import shutil as _shutil
+    dest = MPD_STORAGE / f"mpd_{ds.id}{ext}"
+    try:
+        MPD_STORAGE.mkdir(parents=True, exist_ok=True)
+        _shutil.copy2(str(path), str(dest))
+    except Exception:
+        pass
+
     # Clean up temp file
     try:
         path.unlink(missing_ok=True)

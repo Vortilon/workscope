@@ -310,22 +310,38 @@ def import_mpd_excel_with_mapping(
 
         count = 0
         errors = []
+        threshold_col_idx = col("threshold")
+        interval_col_idx  = col("interval")
+        same_col = (threshold_col_idx is not None and threshold_col_idx == interval_col_idx)
+
         for idx in range(header_row + 1, len(rows)):
             row = list(rows[idx])
             try:
                 mpd_item_num = _get_mapped_val(row, col("mpd_item_number"))
                 task_ref = _get_mapped_val(row, col("task_reference")) or _get_mapped_val(row, col("title"))
-                threshold_raw = _get_mapped_val(row, col("threshold"))
-                interval_raw  = _get_mapped_val(row, col("interval"))
+                threshold_raw = _get_mapped_val(row, threshold_col_idx)
+                interval_raw  = _get_mapped_val(row, interval_col_idx)
                 applicability_raw = _get_mapped_val(row, col("effectivity"))
 
-                # ATR / some OEMs put T: ... I: ... in one cell.
-                # If threshold has the combined pattern and interval is empty, split them.
-                if threshold_raw and not interval_raw:
+                # T:/I: splitting logic:
+                # Case A: same column mapped to both fields (ATR combined format)
+                if same_col:
+                    if threshold_raw:
+                        t_part, i_part = split_combined_ti(threshold_raw)
+                        if i_part:
+                            threshold_raw = t_part or None
+                            interval_raw  = i_part
+                        else:
+                            interval_raw = None   # no I: found; value goes to threshold only
+                    else:
+                        interval_raw = None
+                # Case B: threshold column has combined T:/I: but interval column is empty/unmapped
+                elif threshold_raw and not interval_raw:
                     t_part, i_part = split_combined_ti(threshold_raw)
                     if i_part:
                         threshold_raw = t_part or None
                         interval_raw  = i_part
+                # Case C: interval column has combined T:/I: but threshold is empty/unmapped
                 elif interval_raw and not threshold_raw:
                     t_part, i_part = split_combined_ti(interval_raw)
                     if i_part:
@@ -340,6 +356,9 @@ def import_mpd_excel_with_mapping(
                 # Skip completely empty rows
                 if not mpd_item_num and not task_ref and not _get_mapped_val(row, col("title")):
                     continue
+
+                # Increment sequential task number AFTER blank-row check
+                count += 1
 
                 task = MPDTask(
                     dataset_id=dataset_id,
@@ -367,11 +386,10 @@ def import_mpd_excel_with_mapping(
                     preparation_mh=_get_mapped_val(row, col("preparation_mh")) or None,
                     skill=_get_mapped_val(row, col("skill")) or None,
                     equipment=_get_mapped_val(row, col("equipment")) or None,
-                    row_index=idx,
+                    row_index=count,  # 1-based sequential, blanks excluded
                     extra_raw={h: _get_mapped_val(row, i) for i, h in enumerate(headers) if i < len(row)},
                 )
                 session.add(task)
-                count += 1
                 total += 1
             except Exception as e:
                 errors.append({"row": idx + 1, "message": str(e)})

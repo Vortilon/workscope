@@ -1,13 +1,15 @@
 """Web UI: Jinja + HTMX + Alpine. DAE styling with login gating."""
 import json
 import re as _re
+import shutil
 from pathlib import Path
 from fastapi import APIRouter, Request, Depends, HTTPException, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
+from app.config import MPD_STORAGE
 from app.database import get_db
 from app.models.mpd import MPDDataset, MPDTask
 from app.models.project import Project
@@ -52,12 +54,41 @@ async def home(request: Request):
 
 
 @router.get("/mpd", response_class=HTMLResponse)
-async def mpd_library(request: Request, db: AsyncSession = Depends(get_db)):
+async def mpd_library(request: Request, error: str = "", db: AsyncSession = Depends(get_db)):
     if (r := _require_login(request)):
         return r
-    result = await db.execute(select(MPDDataset).order_by(MPDDataset.manufacturer, MPDDataset.model, MPDDataset.revision))
+    result = await db.execute(
+        select(MPDDataset).order_by(MPDDataset.manufacturer, MPDDataset.model, MPDDataset.revision)
+    )
     datasets = result.scalars().all()
-    return templates.TemplateResponse(request, "mpd_library.html", {"datasets": datasets})
+
+    # Task counts per dataset (single query)
+    counts_res = await db.execute(
+        select(MPDTask.dataset_id, func.count().label("cnt")).group_by(MPDTask.dataset_id)
+    )
+    task_counts = {row.dataset_id: row.cnt for row in counts_res}
+
+    # Which dataset IDs are referenced by at least one project
+    used_res = await db.execute(
+        select(Project.mpd_dataset_id).where(Project.mpd_dataset_id.is_not(None)).distinct()
+    )
+    in_use_ids = {row.mpd_dataset_id for row in used_res}
+
+    # Which dataset IDs have a stored source file
+    has_file_ids = set()
+    for ds in datasets:
+        for ext in (".xlsx", ".xls"):
+            if (MPD_STORAGE / f"mpd_{ds.id}{ext}").exists():
+                has_file_ids.add(ds.id)
+                break
+
+    return templates.TemplateResponse(request, "mpd_library.html", {
+        "datasets": datasets,
+        "task_counts": task_counts,
+        "in_use_ids": in_use_ids,
+        "has_file_ids": has_file_ids,
+        "error": error,
+    })
 
 
 @router.get("/mpd/{dataset_id}", response_class=HTMLResponse)
@@ -107,14 +138,42 @@ async def project_detail(request: Request, project_id: int, db: AsyncSession = D
     return templates.TemplateResponse(request, "project_detail.html", {"project": project})
 
 
+@router.get("/mpd/{dataset_id}/download")
+async def mpd_dataset_download(request: Request, dataset_id: int, db: AsyncSession = Depends(get_db)):
+    if (r := _require_login(request)):
+        return r
+    for ext in (".xlsx", ".xls"):
+        fp = MPD_STORAGE / f"mpd_{dataset_id}{ext}"
+        if fp.exists():
+            ds = (await db.execute(select(MPDDataset).where(MPDDataset.id == dataset_id))).scalars().one_or_none()
+            filename = (ds.source_file if ds and ds.source_file else f"mpd_{dataset_id}{ext}")
+            return FileResponse(
+                str(fp), filename=filename,
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+    raise HTTPException(404, "Source file not available")
+
+
 @router.post("/mpd/{dataset_id}/delete")
 async def mpd_dataset_delete(request: Request, dataset_id: int, db: AsyncSession = Depends(get_db)):
     if (r := _require_login(request)):
         return r
     if request.session.get("role") != "admin":
         raise HTTPException(403, "Admin only")
+
+    # Block deletion if any project references this dataset
+    in_use = (await db.execute(
+        select(func.count()).select_from(Project).where(Project.mpd_dataset_id == dataset_id)
+    )).scalar() or 0
+    if in_use:
+        return RedirectResponse(f"/mpd?error=in_use_{dataset_id}", status_code=303)
+
     ds = (await db.execute(select(MPDDataset).where(MPDDataset.id == dataset_id))).scalars().one_or_none()
     if ds:
+        # Remove stored source file
+        for ext in (".xlsx", ".xls"):
+            fp = MPD_STORAGE / f"mpd_{dataset_id}{ext}"
+            fp.unlink(missing_ok=True)
         await db.delete(ds)
         await db.commit()
     return RedirectResponse("/mpd", status_code=303)
