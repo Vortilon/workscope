@@ -35,10 +35,7 @@ def _import_path(import_id: str, ext: str = ".xlsx") -> Path:
 async def import_step_upload(request: Request):
     if (r := _require_login(request)):
         return r
-    return templates.TemplateResponse(
-        "mpd_import/upload.html",
-        {"request": request, "error": None},
-    )
+    return templates.TemplateResponse(request, "mpd_import/upload.html", {"error": None})
 
 
 @router.post("/mpd/import/upload", response_class=HTMLResponse)
@@ -53,14 +50,14 @@ async def import_upload_post(
         return r
     if not file.filename:
         return templates.TemplateResponse(
-            "mpd_import/upload.html",
-            {"request": request, "error": "Please select a file.", "manufacturer": manufacturer, "model": model, "revision": revision},
+            request, "mpd_import/upload.html",
+            {"error": "Please select a file.", "manufacturer": manufacturer, "model": model, "revision": revision},
         )
     ext = Path(file.filename).suffix.lower()
     if ext not in {".xlsx", ".xls"}:
         return templates.TemplateResponse(
-            "mpd_import/upload.html",
-            {"request": request, "error": "Only .xlsx and .xls files are supported.", "manufacturer": manufacturer, "model": model, "revision": revision},
+            request, "mpd_import/upload.html",
+            {"error": "Only .xlsx and .xls files are supported.", "manufacturer": manufacturer, "model": model, "revision": revision},
         )
     import_id = uuid.uuid4().hex
     path = _import_path(import_id, ext)
@@ -90,16 +87,14 @@ async def import_step_sheets(request: Request):
         sheets = get_workbook_sheets(path)
     except Exception as e:
         return templates.TemplateResponse(
-            "mpd_import/upload.html",
-            {"request": request, "error": f"Cannot read workbook: {e}"},
+            request, "mpd_import/upload.html", {"error": f"Cannot read workbook: {e}"},
         )
     manufacturer = request.session.get("mpd_import_manufacturer", "")
     sheet_names = [s["name"] for s in sheets]
     default_indices = get_default_sheet_indices(sheet_names, manufacturer)
     return templates.TemplateResponse(
-        "mpd_import/sheets.html",
+        request, "mpd_import/sheets.html",
         {
-            "request": request,
             "sheets": sheets,
             "default_indices": default_indices,
             "manufacturer": manufacturer,
@@ -162,12 +157,8 @@ async def import_step_mapping(request: Request):
             {"index": i, "name": name, "headers": headers, "header_row_index": header_row_index, "suggested": suggested}
         )
     return templates.TemplateResponse(
-        "mpd_import/mapping.html",
-        {
-            "request": request,
-            "standard_fields": STANDARD_FIELDS,
-            "sheets_with_headers": sheets_with_headers,
-        },
+        request, "mpd_import/mapping.html",
+        {"standard_fields": STANDARD_FIELDS, "sheets_with_headers": sheets_with_headers},
     )
 
 
@@ -267,7 +258,4 @@ async def import_result(request: Request):
     result = request.session.pop("mpd_import_result", None)
     if not result:
         return RedirectResponse("/mpd", status_code=303)
-    return templates.TemplateResponse(
-        "mpd_import/result.html",
-        {"request": request, "result": result},
-    )
+    return templates.TemplateResponse(request, "mpd_import/result.html", {"result": result})

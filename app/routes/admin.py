@@ -25,9 +25,7 @@ async def users_list(request: Request, db: AsyncSession = Depends(get_db)):
         return r
     result = await db.execute(select(User).order_by(User.username))
     users = result.scalars().all()
-    return templates.TemplateResponse(
-        "admin/users.html", {"request": request, "users": users}
-    )
+    return templates.TemplateResponse(request, "admin/users.html", {"users": users})
 
 
 @router.get("/users/new", response_class=HTMLResponse)
@@ -36,10 +34,7 @@ async def user_new(request: Request):
         return r
     if (r := _require_admin(request)):
         return r
-    return templates.TemplateResponse(
-        "admin/user_form.html",
-        {"request": request, "user": None, "error": None},
-    )
+    return templates.TemplateResponse(request, "admin/user_form.html", {"user": None, "error": None})
 
 
 @router.post("/users", response_class=HTMLResponse)
@@ -60,31 +55,17 @@ async def user_create(
     existing = (await db.execute(select(User).where(User.username == username))).scalars().first()
     if existing:
         return templates.TemplateResponse(
-            "admin/user_form.html",
-            {
-                "request": request,
-                "user": None,
-                "error": "Username already exists.",
-                "username": username,
-                "first_name": first_name,
-                "last_name": last_name,
-                "email": email,
-                "role": role,
-            },
+            request, "admin/user_form.html",
+            {"user": None, "error": "Username already exists.",
+             "username": username, "first_name": first_name,
+             "last_name": last_name, "email": email, "role": role},
         )
     if len(password) < 8:
         return templates.TemplateResponse(
-            "admin/user_form.html",
-            {
-                "request": request,
-                "user": None,
-                "error": "Password must be at least 8 characters.",
-                "username": username,
-                "first_name": first_name,
-                "last_name": last_name,
-                "email": email,
-                "role": role,
-            },
+            request, "admin/user_form.html",
+            {"user": None, "error": "Password must be at least 8 characters.",
+             "username": username, "first_name": first_name,
+             "last_name": last_name, "email": email, "role": role},
         )
     user = User(
         username=username,
@@ -110,10 +91,7 @@ async def user_edit(request: Request, user_id: int, db: AsyncSession = Depends(g
     user = result.scalars().one_or_none()
     if not user:
         return RedirectResponse("/admin/users", status_code=303)
-    return templates.TemplateResponse(
-        "admin/user_form.html",
-        {"request": request, "user": user, "error": None},
-    )
+    return templates.TemplateResponse(request, "admin/user_form.html", {"user": user, "error": None})
 
 
 @router.post("/users/{user_id}", response_class=HTMLResponse)
@@ -135,22 +113,14 @@ async def user_update(
     user = result.scalars().one_or_none()
     if not user:
         return RedirectResponse("/admin/users", status_code=303)
-    # Check username unique when changing
     if user.username != username:
         existing = (await db.execute(select(User).where(User.username == username))).scalars().first()
         if existing:
             return templates.TemplateResponse(
-                "admin/user_form.html",
-                {
-                    "request": request,
-                    "user": user,
-                    "error": "Username already exists.",
-                    "username": username,
-                    "first_name": first_name,
-                    "last_name": last_name,
-                    "email": email,
-                    "role": role,
-                },
+                request, "admin/user_form.html",
+                {"user": user, "error": "Username already exists.",
+                 "username": username, "first_name": first_name,
+                 "last_name": last_name, "email": email, "role": role},
             )
     user.username = username
     user.first_name = first_name
@@ -171,10 +141,7 @@ async def user_password_page(request: Request, user_id: int, db: AsyncSession = 
     user = result.scalars().one_or_none()
     if not user:
         return RedirectResponse("/admin/users", status_code=303)
-    return templates.TemplateResponse(
-        "admin/user_password.html",
-        {"request": request, "user": user, "error": None},
-    )
+    return templates.TemplateResponse(request, "admin/user_password.html", {"user": user, "error": None})
 
 
 @router.post("/users/{user_id}/password", response_class=HTMLResponse)
@@ -194,8 +161,8 @@ async def user_password_set(
         return RedirectResponse("/admin/users", status_code=303)
     if len(password) < 8:
         return templates.TemplateResponse(
-            "admin/user_password.html",
-            {"request": request, "user": user, "error": "Password must be at least 8 characters."},
+            request, "admin/user_password.html",
+            {"user": user, "error": "Password must be at least 8 characters."},
         )
     user.password_hash = hash_password(password)
     await db.commit()
@@ -214,7 +181,6 @@ async def user_toggle_active(
     user = result.scalars().one_or_none()
     if not user:
         return RedirectResponse("/admin/users", status_code=303)
-    # Prevent deactivating yourself
     if user.id == request.session.get("user_id"):
         return RedirectResponse("/admin/users?error=self", status_code=303)
     user.active = not user.active

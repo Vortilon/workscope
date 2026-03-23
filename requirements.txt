@@ -1,5 +1,6 @@
-# Core
-fastapi
+# Core — pin starlette to avoid API-breaking upgrades
+fastapi>=0.115,<1.0
+starlette>=0.41,<1.0
 uvicorn[standard]
 python-dotenv
 python-multipart

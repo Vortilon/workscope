@@ -20,7 +20,7 @@ templates = Jinja2Templates(directory=str(BASE / "templates"))
 async def login_page(request: Request):
     if request.session.get("user_id"):
         return RedirectResponse("/", status_code=303)
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+    return templates.TemplateResponse(request, "login.html", {"error": None})
 
 
 @router.post("/login", response_class=HTMLResponse)
@@ -33,9 +33,8 @@ async def login_submit(
     result = await db.execute(select(User).where(User.username == username))
     user = result.scalars().one_or_none()
     if not user or not user.active or not verify_password(password, user.password_hash):
-        error = "Invalid username or password."
         return templates.TemplateResponse(
-            "login.html", {"request": request, "error": error, "username": username}
+            request, "login.html", {"error": "Invalid username or password.", "username": username}
         )
     request.session["user_id"] = user.id
     request.session["user"] = user.username

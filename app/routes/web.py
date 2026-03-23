@@ -38,7 +38,7 @@ def _require_admin(request: Request):
 async def home(request: Request):
     if (r := _require_login(request)):
         return r
-    return templates.TemplateResponse("home.html", {"request": request})
+    return templates.TemplateResponse(request, "home.html")
 
 
 @router.get("/mpd", response_class=HTMLResponse)
@@ -47,7 +47,7 @@ async def mpd_library(request: Request, db: AsyncSession = Depends(get_db)):
         return r
     result = await db.execute(select(MPDDataset).order_by(MPDDataset.manufacturer, MPDDataset.model, MPDDataset.revision))
     datasets = result.scalars().all()
-    return templates.TemplateResponse("mpd_library.html", {"request": request, "datasets": datasets})
+    return templates.TemplateResponse(request, "mpd_library.html", {"datasets": datasets})
 
 
 @router.get("/mpd/{dataset_id}", response_class=HTMLResponse)
@@ -65,10 +65,7 @@ async def mpd_detail(request: Request, dataset_id: int, db: AsyncSession = Depen
         .limit(200)
     )
     tasks = tasks_result.scalars().all()
-    return templates.TemplateResponse(
-        "mpd_detail.html",
-        {"request": request, "dataset": dataset, "tasks": tasks},
-    )
+    return templates.TemplateResponse(request, "mpd_detail.html", {"dataset": dataset, "tasks": tasks})
 
 
 @router.get("/projects", response_class=HTMLResponse)
@@ -77,7 +74,7 @@ async def project_list(request: Request, db: AsyncSession = Depends(get_db)):
         return r
     result = await db.execute(select(Project).order_by(Project.updated_at.desc()))
     projects = result.scalars().all()
-    return templates.TemplateResponse("projects.html", {"request": request, "projects": projects})
+    return templates.TemplateResponse(request, "projects.html", {"projects": projects})
 
 
 @router.get("/projects/new", response_class=HTMLResponse)
@@ -86,7 +83,7 @@ async def project_new(request: Request, db: AsyncSession = Depends(get_db)):
         return r
     result = await db.execute(select(MPDDataset).order_by(MPDDataset.manufacturer))
     datasets = result.scalars().all()
-    return templates.TemplateResponse("project_new.html", {"request": request, "datasets": datasets})
+    return templates.TemplateResponse(request, "project_new.html", {"datasets": datasets})
 
 
 @router.get("/projects/{project_id}", response_class=HTMLResponse)
@@ -97,7 +94,7 @@ async def project_detail(request: Request, project_id: int, db: AsyncSession = D
     project = result.scalars().one_or_none()
     if not project:
         raise HTTPException(404, "Project not found")
-    return templates.TemplateResponse("project_detail.html", {"request": request, "project": project})
+    return templates.TemplateResponse(request, "project_detail.html", {"project": project})
 
 
 @router.get("/report/{project_id}", response_class=HTMLResponse)
@@ -112,6 +109,6 @@ async def report_page(request: Request, project_id: int, db: AsyncSession = Depe
     summary = await get_report_summary(db, project_id, project.mpd_dataset_id or 0)
     summary_json = json.dumps(summary)
     return templates.TemplateResponse(
-        "report.html",
-        {"request": request, "project": project, "summary": summary, "summary_json": summary_json},
+        request, "report.html",
+        {"project": project, "summary": summary, "summary_json": summary_json},
     )
