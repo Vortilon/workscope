@@ -210,18 +210,30 @@ async def import_step_mapping(request: Request):
 
         col_letters = [_col_letter(j) for j in range(len(headers_clean))]
 
-        # Preview rows (for header row visualisation)
-        preview_rows = get_sheet_rows(path, i, max_rows=max(12, header_row_index + 4))
+        # Get enough rows for: preview (12 shown), sample (+5 below header), fill-rate stats
+        preview_rows = get_sheet_rows(path, i, max_rows=max(30, header_row_index + 12))
 
-        # Sample values — first data row after header (used to preview imported values)
-        sample_values: list[str] = []
-        if len(preview_rows) > header_row_index + 1:
-            sample_values = [str(v)[:60] if v else "" for v in preview_rows[header_row_index + 1]]
+        # Sample values — 5 rows below header (skip any merged/subtitle rows)
+        sample_offset = header_row_index + 5
+        if sample_offset < len(preview_rows):
+            raw_sample = preview_rows[sample_offset]
+        elif header_row_index + 1 < len(preview_rows):
+            raw_sample = preview_rows[header_row_index + 1]
         else:
-            sample_values = [""] * len(headers_clean)
-        # Pad to length of headers
+            raw_sample = []
+        sample_values = [str(v)[:60] if v else "" for v in raw_sample]
         while len(sample_values) < len(headers_clean):
             sample_values.append("")
+
+        # Column fill rates from preview data rows (rough indicator; used for blank-column warning)
+        data_rows_preview = preview_rows[header_row_index + 1:]
+        col_fill_rates: list[float] = []
+        for j in range(len(headers_clean)):
+            if not data_rows_preview:
+                col_fill_rates.append(1.0)
+            else:
+                filled = sum(1 for r in data_rows_preview if j < len(r) and r[j] and str(r[j]).strip())
+                col_fill_rates.append(round(filled / len(data_rows_preview), 2))
 
         total_data_rows = get_total_data_rows(path, i, header_row_index)
 
@@ -234,6 +246,7 @@ async def import_step_mapping(request: Request):
             "col_letters": col_letters,
             "preview_rows": preview_rows,
             "sample_values": sample_values,
+            "col_fill_rates": col_fill_rates,
             "total_data_rows": total_data_rows,
             "saved_mapping_applied": bool(saved_map),
         })
@@ -249,29 +262,38 @@ async def import_step_mapping(request: Request):
 
 
 def _parse_mapping_from_form(form_keys: list[tuple[str, str]]) -> list[dict]:
-    """Build sheet_configs from form keys mapping_sheetIndex_fieldKey = colIndex."""
+    """Build sheet_configs from form keys map_SI_fieldKey=colIndex + headerrow_SI=rowIndex."""
     by_sheet: dict[int, dict[str, int]] = {}
+    header_rows: dict[int, int] = {}
     for key, val in form_keys:
-        if not key.startswith("map_") or "_" not in key:
-            continue
-        parts = key[4:].split("_", 1)
-        if len(parts) != 2:
-            continue
-        try:
-            sheet_idx = int(parts[0])
-            field_key = parts[1]
-        except ValueError:
-            continue
-        if val is None or val == "" or val == "__skip__":
-            continue
-        try:
-            col_idx = int(val)
-        except (ValueError, TypeError):
-            continue
-        if sheet_idx not in by_sheet:
-            by_sheet[sheet_idx] = {}
-        by_sheet[sheet_idx][field_key] = col_idx
-    return [{"sheet_index": si, "header_row_index": 0, "column_map": cm} for si, cm in sorted(by_sheet.items())]
+        if key.startswith("headerrow_"):
+            try:
+                si = int(key[len("headerrow_"):])
+                header_rows[si] = int(val)
+            except (ValueError, TypeError):
+                pass
+        elif key.startswith("map_"):
+            parts = key[4:].split("_", 1)
+            if len(parts) != 2:
+                continue
+            try:
+                sheet_idx = int(parts[0])
+                field_key = parts[1]
+            except ValueError:
+                continue
+            if val is None or val == "" or val == "__skip__":
+                continue
+            try:
+                col_idx = int(val)
+            except (ValueError, TypeError):
+                continue
+            if sheet_idx not in by_sheet:
+                by_sheet[sheet_idx] = {}
+            by_sheet[sheet_idx][field_key] = col_idx
+    return [
+        {"sheet_index": si, "header_row_index": header_rows.get(si, 0), "column_map": cm}
+        for si, cm in sorted(by_sheet.items())
+    ]
 
 
 @router.post("/mpd/import/run", response_class=HTMLResponse)

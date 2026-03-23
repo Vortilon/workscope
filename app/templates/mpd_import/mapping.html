@@ -4,24 +4,31 @@
 <div class="mb-5">
   <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Import MPD – Column mapping</h1>
   <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-    For each field, choose the matching Excel column.
+    Map each Scopewrath field to the matching Excel column.
     {% if manufacturer %}Manufacturer: <strong class="text-gray-700 dark:text-gray-200">{{ manufacturer }}</strong>.{% endif %}
   </p>
   {% if sheets_with_headers and sheets_with_headers[0].saved_mapping_applied %}
   <div class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-3 py-1 text-xs font-medium text-green-700">
-    <svg class="w-3.5 h-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-    Previous {{ manufacturer }} mapping loaded — verify samples and adjust if needed.
+    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+    Previous {{ manufacturer }} mapping pre-applied — verify samples and adjust if needed.
   </div>
   {% endif %}
 </div>
 
+{# ── Embed all sheet data for JS ─────────────────────────────────────────── #}
+<script>
+window._SD = {};  // sheet data keyed by sheet index
+{% for sheet in sheets_with_headers %}
+window._SD["{{ sheet.index }}"] = {
+  rows:      {{ sheet.preview_rows    | tojson }},
+  letters:   {{ sheet.col_letters     | tojson }},
+  fillRates: {{ sheet.col_fill_rates  | tojson }},
+};
+{% endfor %}
+</script>
+
 <form action="/mpd/import/run" method="post" class="space-y-10">
   {% for sheet in sheets_with_headers %}
-
-  {# Embed sample values as JS constant for this sheet #}
-  <script>
-    window._samples_{{ sheet.index }} = {{ sheet.sample_values | tojson }};
-  </script>
 
   <div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700">
 
@@ -30,62 +37,58 @@
       <div>
         <h2 class="font-semibold text-gray-900 dark:text-white">📄 Sheet: <span class="text-dae">{{ sheet.name }}</span></h2>
         <p class="mt-0.5 text-xs text-gray-500">
-          <strong class="text-gray-800 dark:text-gray-200">~{{ sheet.total_data_rows }}</strong> records expected ·
-          {{ sheet.headers | length }} columns detected
+          <span id="total_rows_{{ sheet.index }}"><strong class="text-gray-800 dark:text-gray-200">~{{ sheet.total_data_rows }}</strong></span>
+          records expected · {{ sheet.headers | length }} columns detected
         </p>
       </div>
-      {# ── Header row control (e) ── #}
+      {# ── Header row control ── #}
       <div class="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg px-3 py-2">
         <svg class="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        <span class="text-xs font-medium text-blue-800 dark:text-blue-200 whitespace-nowrap">Header on row:</span>
+        <span class="text-xs font-medium text-blue-800 dark:text-blue-200 whitespace-nowrap">Header row:</span>
         <button type="button" onclick="adjustHR('{{ sheet.index }}',-1)"
-          class="w-6 h-6 rounded border border-blue-300 bg-white hover:bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center leading-none">−</button>
+          class="w-6 h-6 rounded border border-blue-300 bg-white hover:bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center">−</button>
         <input type="number" id="hr_{{ sheet.index }}" min="1" max="99"
                value="{{ sheet.header_row_index + 1 }}"
-               onchange="syncHR('{{ sheet.index }}')"
+               oninput="syncHR('{{ sheet.index }}')"
                class="w-12 text-center rounded border border-blue-300 px-1 py-0.5 text-xs font-mono dark:bg-gray-700 dark:border-gray-600 dark:text-white">
         <button type="button" onclick="adjustHR('{{ sheet.index }}',1)"
-          class="w-6 h-6 rounded border border-blue-300 bg-white hover:bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center leading-none">+</button>
+          class="w-6 h-6 rounded border border-blue-300 bg-white hover:bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center">+</button>
         <input type="hidden" id="headerrow_{{ sheet.index }}" name="headerrow_{{ sheet.index }}" value="{{ sheet.header_row_index }}">
-        <span class="text-[10px] text-blue-600 dark:text-blue-300">(used for import; column preview stays fixed)</span>
+        <span class="text-[10px] text-blue-500">Sample = header+5</span>
       </div>
     </div>
 
-    {# ── Row preview ── #}
+    {# ── Row preview table ── #}
     {% if sheet.preview_rows %}
-    <div class="px-4 pt-3">
-      <p class="text-xs font-medium text-gray-500 mb-1">
-        First {{ [sheet.preview_rows | length, 12] | min }} rows
-        <span class="text-gray-400">— row highlighted in <span class="text-blue-600 font-semibold">blue</span> = guessed header</span>
-      </p>
-      <div class="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-700 text-[10px]">
-        <table class="min-w-max text-left">
+    <div class="px-4 pt-3 pb-1">
+      <p class="text-xs text-gray-400 mb-1">First {{ [sheet.preview_rows | length, 30] | min }} rows · <span class="text-blue-600 font-medium">blue = header</span> · <span class="text-green-600 font-medium">green = first data row</span></p>
+      <div class="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-700 text-[10px]" style="max-height:200px;overflow-y:auto">
+        <table class="min-w-max text-left" id="preview_{{ sheet.index }}">
           <tbody>
-            {% for row in sheet.preview_rows[:12] %}
-            <tr class="{% if loop.index0 == sheet.header_row_index %}bg-blue-100 dark:bg-blue-900/40 font-bold text-blue-900 dark:text-blue-100 border-l-4 border-blue-500{% elif loop.index0 == sheet.header_row_index + 1 %}bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200{% elif loop.index0 % 2 == 0 %}bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300{% else %}bg-gray-50 dark:bg-gray-750 text-gray-600 dark:text-gray-300{% endif %}">
-              <td class="px-2 py-0.5 text-gray-400 select-none w-5 border-r border-gray-200 dark:border-gray-700 font-mono">
-                {{ loop.index }}{% if loop.index0 == sheet.header_row_index %} ←hdr{% elif loop.index0 == sheet.header_row_index + 1 %} ←1st{% endif %}
-              </td>
+            {% for row in sheet.preview_rows %}
+            <tr data-preview-row="{{ loop.index0 }}"
+                class="{% if loop.index0 == sheet.header_row_index %}bg-blue-100 font-bold text-blue-900 border-l-4 border-l-blue-500{% elif loop.index0 == sheet.header_row_index + 1 %}bg-green-50 text-green-800{% elif loop.index0 % 2 == 0 %}bg-white text-gray-600{% else %}bg-gray-50 text-gray-600{% endif %} dark:text-gray-300">
+              <td class="px-2 py-0.5 text-gray-400 select-none w-12 border-r border-gray-200 dark:border-gray-700 font-mono" data-row-label="{{ loop.index }}{% if loop.index0 == sheet.header_row_index %} ←hdr{% elif loop.index0 == sheet.header_row_index + 1 %} ←1st{% endif %}">{{ loop.index }}{% if loop.index0 == sheet.header_row_index %} ←hdr{% elif loop.index0 == sheet.header_row_index + 1 %} ←1st{% endif %}</td>
               {% for cell in row[:30] %}
-              <td class="px-2 py-0.5 border-r border-gray-100 dark:border-gray-700 max-w-[90px] truncate" title="{{ cell }}">{{ cell }}</td>
+              <td class="px-2 py-0.5 border-r border-gray-100 dark:border-gray-700 max-w-[80px] truncate" title="{{ cell }}">{{ cell }}</td>
               {% endfor %}
             </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-      <p class="text-[10px] text-green-700 dark:text-green-400 mt-1">Green row = first data row — values shown below each field mapping are from this row.</p>
+      <p class="text-[10px] text-amber-600 mt-1">Sample values below each field are taken from <strong>header row + 5</strong> to skip subtitle/merged rows.</p>
     </div>
     {% endif %}
 
-    {# ── Column mapping ── #}
+    {# ── Column mapping table ── #}
     <div class="p-4 overflow-x-auto">
       <table class="w-full text-sm text-left">
         <thead>
           <tr class="text-xs text-gray-500 border-b border-gray-100 dark:border-gray-700">
             <th class="pb-2 pr-3 w-44 font-medium">Scopewrath field</th>
-            <th class="pb-2 pr-3 font-medium">Excel column <span class="font-normal text-gray-400 text-[10px]">(letter · header text)</span></th>
-            <th class="pb-2 font-medium text-green-700 dark:text-green-400">Sample value from row {{ sheet.header_row_index + 2 }}</th>
+            <th class="pb-2 pr-3 font-medium">Excel column <span class="font-normal text-gray-400 text-[10px]">(letter · caption from selected header row)</span></th>
+            <th class="pb-2 font-medium text-green-700 dark:text-green-400">Sample value (row +5)</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-50 dark:divide-gray-700">
@@ -98,7 +101,7 @@
             <td class="py-2 pr-3">
               <select name="map_{{ sheet.index }}_{{ key }}"
                       id="sel_{{ sheet.index }}_{{ key }}"
-                      onchange="showSample('{{ sheet.index }}','{{ key }}')"
+                      onchange="onSelChange('{{ sheet.index }}','{{ key }}')"
                       class="w-full max-w-sm rounded-md border {% if is_primary %}border-amber-400{% else %}border-gray-300{% endif %} bg-white px-2 py-1.5 text-xs focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                 <option value="__skip__">— skip —</option>
                 {% for h in sheet.headers %}
@@ -109,10 +112,12 @@
                 {% endfor %}
               </select>
             </td>
-            <td class="py-2 text-xs">
-              <span id="smp_{{ sheet.index }}_{{ key }}"
-                    class="inline-block rounded px-2 py-0.5 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 border border-green-100 dark:border-green-700 max-w-xs truncate font-mono">
-              </span>
+            <td class="py-2">
+              <div>
+                <span id="smp_{{ sheet.index }}_{{ key }}"
+                      class="inline-block rounded px-2 py-0.5 bg-green-50 text-green-800 border border-green-100 max-w-xs truncate font-mono text-xs"></span>
+              </div>
+              <div id="wrn_{{ sheet.index }}_{{ key }}" class="text-[10px] mt-0.5"></div>
             </td>
           </tr>
           {% endfor %}
@@ -125,7 +130,7 @@
 
   <div class="flex gap-3 pt-2">
     <a href="/mpd/import/sheets"
-       class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
+       class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600">
       ← Back
     </a>
     <button type="submit"
@@ -138,41 +143,137 @@
 
 {% block scripts %}
 <script>
-// ── Header row ± controls ────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function getHR(si) {
+  return Math.max(0, parseInt(document.getElementById('hr_' + si).value, 10) - 1);
+}
+
+function getSampleRow(si) {
+  const d = window._SD[si]; if (!d) return [];
+  const hr = getHR(si);
+  return d.rows[hr + 5] || d.rows[hr + 2] || d.rows[hr + 1] || [];
+}
+
+// ── Header row ± ─────────────────────────────────────────────────────────────
 function adjustHR(si, delta) {
-  const disp   = document.getElementById('hr_'        + si);
-  const hidden = document.getElementById('headerrow_' + si);
-  let v = Math.max(1, Math.min(99, (parseInt(disp.value, 10) || 1) + delta));
-  disp.value   = v;
-  hidden.value = v - 1;
+  const disp = document.getElementById('hr_' + si);
+  disp.value = Math.max(1, Math.min(99, parseInt(disp.value, 10) + delta));
+  syncHR(si);
 }
+
 function syncHR(si) {
-  const disp   = document.getElementById('hr_'        + si);
+  const disp   = document.getElementById('hr_' + si);
   const hidden = document.getElementById('headerrow_' + si);
-  let v = Math.max(1, Math.min(99, parseInt(disp.value, 10) || 1));
+  const v = Math.max(1, Math.min(99, parseInt(disp.value, 10) || 1));
   disp.value   = v;
   hidden.value = v - 1;
+  refreshSheet(si);
 }
 
-// ── Sample value preview ─────────────────────────────────────────────────────
-function showSample(si, key) {
-  const sel     = document.getElementById('sel_' + si + '_' + key);
-  const smpEl   = document.getElementById('smp_' + si + '_' + key);
-  if (!sel || !smpEl) return;
-  const samples = window['_samples_' + si] || [];
-  const idx     = parseInt(sel.value, 10);
-  const val     = (!isNaN(idx) && idx >= 0 && samples[idx] != null) ? String(samples[idx]).trim() : '';
-  smpEl.textContent = val || '';
-  smpEl.style.display = val ? '' : 'none';
+// ── Full sheet refresh when header row changes ────────────────────────────────
+function refreshSheet(si) {
+  const d = window._SD[si]; if (!d) return;
+  const hr = getHR(si);
+  const headerRow = d.rows[hr] || [];
+  const sampleRow = getSampleRow(si);
+
+  // Update preview table row classes and labels
+  document.querySelectorAll('#preview_' + si + ' tr[data-preview-row]').forEach(tr => {
+    const ri = parseInt(tr.dataset.previewRow, 10);
+    const lbl = tr.querySelector('[data-row-label]');
+    tr.className = '';
+    if (ri === hr) {
+      tr.classList.add('bg-blue-100','font-bold','text-blue-900','border-l-4','border-l-blue-500');
+      if (lbl) lbl.textContent = (ri+1) + ' ←hdr';
+    } else if (ri === hr + 1) {
+      tr.classList.add('bg-green-50','text-green-800');
+      if (lbl) lbl.textContent = (ri+1) + ' ←1st';
+    } else {
+      tr.classList.add(ri%2===0 ? 'bg-white':'bg-gray-50','text-gray-600');
+      if (lbl) lbl.textContent = (ri+1);
+    }
+  });
+
+  // Update estimated record count
+  const totalEl = document.getElementById('total_rows_' + si);
+  if (totalEl) {
+    const est = Math.max(0, d.rows.length - hr - 1);
+    totalEl.innerHTML = '<strong class="text-gray-800">~' + est + '</strong>';
+  }
+
+  // Update all dropdowns for this sheet
+  document.querySelectorAll('select[name^="map_' + si + '_"]').forEach(sel => {
+    const saved = sel.value;
+    Array.from(sel.options).forEach(opt => {
+      if (opt.value === '__skip__') return;
+      const ci = parseInt(opt.value, 10);
+      const letter = (d.letters[ci] || '');
+      const cell = headerRow[ci];
+      const caption = (cell !== undefined && cell !== null && String(cell).trim())
+                      ? String(cell).replace(/[\n\r\t]+/g,' ').trim()
+                      : '(empty)';
+      opt.textContent = letter + ' · ' + caption;
+    });
+    sel.value = saved;
+    // Update sample + warning
+    const key = sel.name.split('_').slice(2).join('_');
+    renderSample(si, key, sel, sampleRow, d.fillRates);
+  });
 }
 
-// Init on load — show samples for all pre-selected fields
+// ── Sample + fill-rate rendering ─────────────────────────────────────────────
+function renderSample(si, key, sel, sampleRow, fillRates) {
+  const smpEl = document.getElementById('smp_' + si + '_' + key);
+  const wrnEl = document.getElementById('wrn_' + si + '_' + key);
+  if (!smpEl) return;
+  const ci = parseInt(sel.value, 10);
+  if (isNaN(ci) || ci < 0 || sel.value === '__skip__') {
+    smpEl.textContent = '';  smpEl.style.display = 'none';
+    if (wrnEl) wrnEl.textContent = '';
+    return;
+  }
+  const val = (sampleRow[ci] !== undefined && sampleRow[ci] !== null) ? String(sampleRow[ci]).trim() : '';
+  smpEl.style.display = '';
+  if (val) {
+    smpEl.textContent = val;
+    smpEl.className = 'inline-block rounded px-2 py-0.5 bg-green-50 text-green-800 border border-green-100 max-w-xs truncate font-mono text-xs';
+  } else {
+    smpEl.textContent = '(blank in sample row)';
+    smpEl.className = 'inline-block rounded px-2 py-0.5 bg-gray-50 text-gray-400 border border-gray-200 max-w-xs font-mono text-xs italic';
+  }
+  // Fill rate warning
+  if (wrnEl && fillRates && ci < fillRates.length) {
+    const r = fillRates[ci];
+    const pct = Math.round(r * 100);
+    if (r < 0.10) {
+      wrnEl.textContent = '⚠ ' + pct + '% filled — mostly blank, verify this mapping';
+      wrnEl.className = 'text-[10px] text-red-600 font-semibold mt-0.5';
+    } else if (r < 0.30) {
+      wrnEl.textContent = '⚠ ' + pct + '% filled';
+      wrnEl.className = 'text-[10px] text-amber-600 font-medium mt-0.5';
+    } else {
+      wrnEl.textContent = '✓ ' + pct + '% filled';
+      wrnEl.className = 'text-[10px] text-green-600 mt-0.5';
+    }
+  }
+}
+
+function onSelChange(si, key) {
+  const d = window._SD[si]; if (!d) return;
+  const sel = document.getElementById('sel_' + si + '_' + key);
+  renderSample(si, key, sel, getSampleRow(si), d.fillRates);
+}
+
+// ── Init on load ─────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('select[name^="map_"]').forEach(sel => {
-    const parts  = sel.name.split('_');      // map_SI_fieldkey...
-    const si     = parts[1];
-    const key    = parts.slice(2).join('_');
-    showSample(si, key);
+  Object.keys(window._SD).forEach(si => {
+    // Populate initial samples for all pre-selected fields
+    const d = window._SD[si];
+    const sampleRow = getSampleRow(si);
+    document.querySelectorAll('select[name^="map_' + si + '_"]').forEach(sel => {
+      const key = sel.name.split('_').slice(2).join('_');
+      renderSample(si, key, sel, sampleRow, d.fillRates);
+    });
   });
 });
 </script>

@@ -36,6 +36,17 @@ def normalize_interval_raw(raw: str | None) -> tuple[str, dict[str, Any] | None]
     return (norm_str, {"value": value, "unit": unit_norm})
 
 
+def parse_interval_tokens(raw: str | None) -> list[str]:
+    """Split a threshold/interval string into individual condition tokens.
+
+    'T: 4000 FC, 18 MO OR NOTE ...' → ['T: 4000 FC', '18 MO OR NOTE ...']
+    Splits on commas and semicolons only, preserving each token's full text.
+    """
+    if not raw:
+        return []
+    return [t.strip() for t in re.split(r"[,;]", str(raw)) if t.strip()]
+
+
 def normalize_applicability_tokens(raw: str | None) -> list[str]:
     """Tokenize applicability text (e.g. PRE XXX, POST YYY AND CFM56) into list of tokens. Preserve logic in engine."""
     if not raw:
