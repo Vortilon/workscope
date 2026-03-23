@@ -68,6 +68,24 @@ def _load_wb_sheets(file_path: Path) -> list[tuple[str, list[list[Any]]]]:
         return result
 
 
+def load_workbook_data(file_path: Path) -> list[tuple[str, list[list[Any]]]]:
+    """Load the workbook once and return (sheet_name, rows) pairs. Use this to avoid
+    re-reading the file for every sub-operation on the mapping page."""
+    return _load_wb_sheets(file_path)
+
+
+def detect_header_row(rows: list[list[Any]], max_scan: int = 10) -> int:
+    """Return the 0-based index of the row that is most likely the header
+    (highest density of non-empty string cells in the first max_scan rows)."""
+    best_idx, best_score = 0, -1
+    for idx in range(min(len(rows), max_scan)):
+        score = sum(1 for cell in rows[idx] if isinstance(cell, str) and str(cell).strip())
+        if score > best_score:
+            best_score = score
+            best_idx = idx
+    return best_idx
+
+
 def get_workbook_sheets(file_path: Path) -> list[dict[str, Any]]:
     """Return list of {index, name} for all sheets."""
     return [{"index": i, "name": name} for i, (name, _) in enumerate(_load_wb_sheets(file_path))]

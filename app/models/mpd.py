@@ -16,6 +16,7 @@ class MPDDataset(Base):
     version: Mapped[str] = mapped_column(String(128), nullable=True)
     source_file: Mapped[str] = mapped_column(String(512), nullable=True)
     parsed_status: Mapped[str] = mapped_column(String(32), default="pending")  # pending | in_progress | done | error
+    is_superseded: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

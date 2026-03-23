@@ -107,6 +107,33 @@ async def project_detail(request: Request, project_id: int, db: AsyncSession = D
     return templates.TemplateResponse(request, "project_detail.html", {"project": project})
 
 
+@router.post("/mpd/{dataset_id}/delete")
+async def mpd_dataset_delete(request: Request, dataset_id: int, db: AsyncSession = Depends(get_db)):
+    if (r := _require_login(request)):
+        return r
+    if request.session.get("role") != "admin":
+        raise HTTPException(403, "Admin only")
+    ds = (await db.execute(select(MPDDataset).where(MPDDataset.id == dataset_id))).scalars().one_or_none()
+    if ds:
+        await db.delete(ds)
+        await db.commit()
+    return RedirectResponse("/mpd", status_code=303)
+
+
+@router.post("/mpd/{dataset_id}/toggle-superseded")
+async def mpd_dataset_toggle_superseded(request: Request, dataset_id: int, db: AsyncSession = Depends(get_db)):
+    if (r := _require_login(request)):
+        return r
+    if request.session.get("role") != "admin":
+        raise HTTPException(403, "Admin only")
+    ds = (await db.execute(select(MPDDataset).where(MPDDataset.id == dataset_id))).scalars().one_or_none()
+    if not ds:
+        raise HTTPException(404, "Dataset not found")
+    ds.is_superseded = not ds.is_superseded
+    await db.commit()
+    return RedirectResponse("/mpd", status_code=303)
+
+
 @router.get("/mpd/{dataset_id}/tasks/{task_id}/edit", response_class=HTMLResponse)
 async def mpd_task_edit_get(request: Request, dataset_id: int, task_id: int, db: AsyncSession = Depends(get_db)):
     if (r := _require_login(request)):

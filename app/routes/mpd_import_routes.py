@@ -16,10 +16,9 @@ from app.services.mpd_import import (
     create_dataset,
     set_dataset_done,
     get_workbook_sheets,
-    get_sheet_headers,
-    get_sheet_rows,
-    get_total_data_rows,
     get_default_sheet_indices,
+    load_workbook_data,
+    detect_header_row,
     STANDARD_FIELDS,
     import_mpd_excel_with_mapping,
 )
@@ -169,27 +168,40 @@ async def import_step_mapping(request: Request):
     path = _import_path(import_id, request.session.get("mpd_import_ext", ".xlsx"))
     if not path.exists():
         return RedirectResponse("/mpd/import?error=expired", status_code=303)
+
+    # ── Load file ONCE — avoids repeated I/O for large Boeing/ATR files ───────
     try:
-        all_sheets = get_workbook_sheets(path)
+        all_sheets_data = load_workbook_data(path)   # [(name, rows), ...]
     except Exception:
         return RedirectResponse("/mpd/import/sheets", status_code=303)
 
     manufacturer = request.session.get("mpd_import_manufacturer", "")
     saved_map = _load_saved_mappings().get(manufacturer, {})
 
-    # Build per-sheet headers and suggest mapping
     sheets_with_headers = []
     for i in sheet_indices:
         i = int(i)
-        if i < 0 or i >= len(all_sheets):
+        if i < 0 or i >= len(all_sheets_data):
             continue
-        name = all_sheets[i]["name"]
-        headers, header_row_index = get_sheet_headers(path, i)
+        name, raw_rows = all_sheets_data[i]
+
+        # Detect header row from already-loaded data
+        header_row_index = detect_header_row(raw_rows)
+
+        # Raw headers from the detected header row
+        hrow = raw_rows[header_row_index] if raw_rows else []
+        headers_raw = [str(c).strip() if c is not None else f"Col{j}" for j, c in enumerate(hrow)]
+
+        # Clean headers: strip newlines/tabs (common in merged Excel cells)
+        headers_clean = [
+            h.replace("\n", " ").replace("\r", " ").replace("\t", " ").strip() if h else ""
+            for h in headers_raw
+        ]
 
         # Heuristic suggestions from header text
         suggested = {}
         for _label, key in STANDARD_FIELDS:
-            for hi, h in enumerate(headers):
+            for hi, h in enumerate(headers_clean):
                 if h and key.replace("_", " ").lower() in h.lower():
                     suggested[key] = hi
                     break
@@ -199,21 +211,19 @@ async def import_step_mapping(request: Request):
 
         # Saved manufacturer mapping overrides heuristic (only if col index still valid)
         for field_key, col_idx in saved_map.items():
-            if col_idx < len(headers):
+            if col_idx < len(headers_clean):
                 suggested[field_key] = col_idx
-
-        # Clean headers: strip newlines/tabs (common in merged Excel cells)
-        headers_clean = [
-            h.replace("\n", " ").replace("\r", " ").replace("\t", " ").strip() if h else ""
-            for h in headers
-        ]
 
         col_letters = [_col_letter(j) for j in range(len(headers_clean))]
 
-        # Get enough rows for: preview (12 shown), sample (+5 below header), fill-rate stats
-        preview_rows = get_sheet_rows(path, i, max_rows=max(30, header_row_index + 12))
+        # Preview rows (truncated strings) — still from the already-loaded raw_rows
+        n_preview = max(30, header_row_index + 12)
+        preview_rows = [
+            [str(v)[:40] if v is not None else "" for v in row]
+            for row in raw_rows[:n_preview]
+        ]
 
-        # Sample values — 5 rows below header (skip any merged/subtitle rows)
+        # Sample values — 5 rows below header
         sample_offset = header_row_index + 5
         if sample_offset < len(preview_rows):
             raw_sample = preview_rows[sample_offset]
@@ -225,7 +235,7 @@ async def import_step_mapping(request: Request):
         while len(sample_values) < len(headers_clean):
             sample_values.append("")
 
-        # Column fill rates from preview data rows (rough indicator; used for blank-column warning)
+        # Column fill rates from preview data rows
         data_rows_preview = preview_rows[header_row_index + 1:]
         col_fill_rates: list[float] = []
         for j in range(len(headers_clean)):
@@ -235,7 +245,7 @@ async def import_step_mapping(request: Request):
                 filled = sum(1 for r in data_rows_preview if j < len(r) and r[j] and str(r[j]).strip())
                 col_fill_rates.append(round(filled / len(data_rows_preview), 2))
 
-        total_data_rows = get_total_data_rows(path, i, header_row_index)
+        total_data_rows = max(0, len(raw_rows) - header_row_index - 1)
 
         sheets_with_headers.append({
             "index": i,

@@ -145,12 +145,12 @@
   </button>
 
   <!-- Chat panel -->
-  <div id="perkins-panel" class="hidden-panel fixed bottom-24 right-6 z-50 w-[360px] max-h-[580px] flex flex-col
+  <div id="perkins-panel" class="hidden-panel fixed bottom-24 right-6 z-50 flex flex-col
        bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden"
-       style="max-width: calc(100vw - 2rem);">
+       style="width:360px;max-height:580px;max-width:calc(100vw - 2rem);transition:width .25s,max-height .25s,transform .3s cubic-bezier(.4,0,.2,1),opacity .3s;">
 
     <!-- Header -->
-    <div class="flex items-center justify-between px-4 py-3 bg-[#c00000] text-white select-none">
+    <div class="flex items-center justify-between px-4 py-3 bg-[#c00000] text-white select-none shrink-0">
       <div class="flex items-center gap-2">
         <svg class="w-5 h-5 opacity-80" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round"
@@ -160,13 +160,22 @@
         <span id="perkins-status-dot" class="w-2 h-2 rounded-full bg-green-300 animate-pulse" title="Online"></span>
       </div>
       <div class="flex items-center gap-1">
-        <button onclick="perkinsNew()" title="New conversation"
+        <!-- New conversation -->
+        <button onclick="perkinsNew()" title="Clear chat — start new conversation"
           class="p-1.5 rounded-lg hover:bg-white/20 transition-colors text-white/80 hover:text-white">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
           </svg>
         </button>
-        <button onclick="perkinsToggle()" title="Close"
+        <!-- Expand / Compress -->
+        <button id="perkins-expand-btn" onclick="perkinsExpand()" title="Expand panel"
+          class="p-1.5 rounded-lg hover:bg-white/20 transition-colors text-white/80 hover:text-white">
+          <svg id="perkins-expand-icon" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+          </svg>
+        </button>
+        <!-- Close -->
+        <button onclick="perkinsToggle()" title="Minimise"
           class="p-1.5 rounded-lg hover:bg-white/20 transition-colors text-white/80 hover:text-white">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
@@ -185,8 +194,9 @@
     <div id="perkins-msgs" class="flex-1 overflow-y-auto px-3 py-3 space-y-2 text-sm min-h-[200px]">
       <div class="text-center text-gray-400 text-xs pt-4 select-none" id="perkins-welcome">
         <div class="text-2xl mb-1">✈️</div>
-        <div class="font-medium text-gray-500">Ask Perkins anything about</div>
-        <div class="text-gray-400">maintenance tasks, MPD, regulations or this project.</div>
+        <div class="font-medium text-gray-500">Perkins Aviation Assistant</div>
+        <div class="text-gray-400 mt-1 px-2">Ask about maintenance tasks, MPD, airworthiness, ADs, lease return, or technical acceptance.</div>
+        <div class="text-[10px] text-gray-300 mt-2">Aviation &amp; leasing scope only.</div>
       </div>
     </div>
 
@@ -214,7 +224,7 @@
           </svg>
         </button>
       </div>
-      <p class="text-[10px] text-gray-400 mt-1.5 pl-1">Enter ↵ send · Shift+Enter newline · Answers grounded in MPD when dataset selected.</p>
+      <p class="text-[10px] text-gray-400 mt-1.5 pl-1">Enter ↵ send · Shift+Enter newline · Aviation &amp; leasing scope · MPD-grounded when dataset active.</p>
     </div>
   </div>
 
@@ -255,14 +265,37 @@
     };
 
     window.perkinsNew = function () {
-      msgs.innerHTML = document.getElementById('perkins-welcome')
-        ? '' : '';
+      // Open panel if closed
+      if (!_open) perkinsToggle();
       msgs.innerHTML =
         '<div class="text-center text-gray-400 text-xs pt-4 select-none" id="perkins-welcome">' +
         '<div class="text-2xl mb-1">✈️</div>' +
-        '<div class="font-medium text-gray-500">Ask Perkins anything about</div>' +
-        '<div class="text-gray-400">maintenance tasks, MPD, regulations or this project.</div>' +
+        '<div class="font-medium text-gray-500">New conversation started</div>' +
+        '<div class="text-gray-400 mt-1 px-2">Ask about maintenance tasks, MPD, airworthiness, ADs, lease return, or technical acceptance.</div>' +
+        '<div class="text-[10px] text-gray-300 mt-2">Aviation &amp; leasing scope only.</div>' +
         '</div>';
+    };
+
+    let _expanded = false;
+    window.perkinsExpand = function () {
+      _expanded = !_expanded;
+      const p = panel;
+      const icon = document.getElementById('perkins-expand-icon');
+      const btn  = document.getElementById('perkins-expand-btn');
+      if (_expanded) {
+        p.style.width     = 'min(720px, calc(100vw - 2rem))';
+        p.style.maxHeight = '85vh';
+        p.style.bottom    = '1.5rem';
+        btn.title = 'Compress panel';
+        // Switch icon to compress arrows
+        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M9 9L4 4m0 0h4m-4 0v4m11-4l5 5m-5-5h4m0 0v4M9 15l-5 5m5-5H5m0 0v4m11-5l5 5m0 0h-4m4 0v-4"/>';
+      } else {
+        p.style.width     = '360px';
+        p.style.maxHeight = '580px';
+        p.style.bottom    = '';
+        btn.title = 'Expand panel';
+        icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>';
+      }
     };
 
     function appendMsg(role, html) {
