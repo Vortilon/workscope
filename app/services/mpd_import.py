@@ -14,6 +14,7 @@ from app.services.normalize import normalize_interval_raw, normalize_applicabili
 
 # Standard fields shown in column-mapping UI (label, our key)
 STANDARD_FIELDS = [
+    ("MPD Item Number ★", "mpd_item_number"),   # primary manufacturer identifier
     ("Task reference", "task_reference"),
     ("Title", "title"),
     ("Description", "description"),
@@ -99,6 +100,15 @@ def get_sheet_headers(file_path: Path, sheet_index: int, header_row_index: int =
         guess_idx = best_idx
     headers = [str(c).strip() if c is not None else f"Col{i}" for i, c in enumerate(rows[guess_idx])]
     return headers, guess_idx
+
+
+def get_total_data_rows(file_path: Path, sheet_index: int, header_row_index: int) -> int:
+    """Return number of rows after the header (upper bound for import count)."""
+    sheets = _load_wb_sheets(file_path)
+    if sheet_index >= len(sheets):
+        return 0
+    _, rows = sheets[sheet_index]
+    return max(0, len(rows) - header_row_index - 1)
 
 
 def get_sheet_rows(file_path: Path, sheet_index: int, max_rows: int = 8) -> list[list]:
@@ -281,6 +291,7 @@ def import_mpd_excel_with_mapping(
         for idx in range(header_row + 1, len(rows)):
             row = list(rows[idx])
             try:
+                mpd_item_num = _get_mapped_val(row, col("mpd_item_number"))
                 task_ref = _get_mapped_val(row, col("task_reference")) or _get_mapped_val(row, col("title"))
                 threshold_raw = _get_mapped_val(row, col("threshold"))
                 interval_raw = _get_mapped_val(row, col("interval"))
@@ -290,8 +301,13 @@ def import_mpd_excel_with_mapping(
                 tokens = normalize_applicability_tokens(applicability_raw or None)
                 applicability_tokens_normalized = ",".join(tokens) if tokens else None
 
+                # Skip completely empty rows
+                if not mpd_item_num and not task_ref and not _get_mapped_val(row, col("title")):
+                    continue
+
                 task = MPDTask(
                     dataset_id=dataset_id,
+                    mpd_item_number=mpd_item_num or None,
                     task_reference=task_ref or None,
                     task_number=task_ref or None,
                     task_code=task_ref or None,

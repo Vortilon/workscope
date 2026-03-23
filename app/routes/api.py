@@ -80,6 +80,7 @@ async def api_list_mpd_tasks(
         {
             "id": t.id,
             "dataset_id": t.dataset_id,
+            "mpd_item_number": t.mpd_item_number,
             "task_reference": t.task_reference,
             "task_number": t.task_number,
             "task_code": t.task_code,

@@ -62,7 +62,7 @@ async def mpd_detail(request: Request, dataset_id: int, db: AsyncSession = Depen
         select(MPDTask)
         .where(MPDTask.dataset_id == dataset_id)
         .order_by(MPDTask.row_index)
-        .limit(200)
+        .limit(1000)
     )
     tasks = tasks_result.scalars().all()
     return templates.TemplateResponse(request, "mpd_detail.html", {"dataset": dataset, "tasks": tasks})

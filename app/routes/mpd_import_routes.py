@@ -18,6 +18,7 @@ from app.services.mpd_import import (
     get_workbook_sheets,
     get_sheet_headers,
     get_sheet_rows,
+    get_total_data_rows,
     get_default_sheet_indices,
     STANDARD_FIELDS,
     import_mpd_excel_with_mapping,
@@ -201,17 +202,39 @@ async def import_step_mapping(request: Request):
             if col_idx < len(headers):
                 suggested[field_key] = col_idx
 
-        col_letters = [_col_letter(j) for j in range(len(headers))]
-        preview_rows = get_sheet_rows(path, i, max_rows=8)
+        # Clean headers: strip newlines/tabs (common in merged Excel cells)
+        headers_clean = [
+            h.replace("\n", " ").replace("\r", " ").replace("\t", " ").strip() if h else ""
+            for h in headers
+        ]
+
+        col_letters = [_col_letter(j) for j in range(len(headers_clean))]
+
+        # Preview rows (for header row visualisation)
+        preview_rows = get_sheet_rows(path, i, max_rows=max(12, header_row_index + 4))
+
+        # Sample values — first data row after header (used to preview imported values)
+        sample_values: list[str] = []
+        if len(preview_rows) > header_row_index + 1:
+            sample_values = [str(v)[:60] if v else "" for v in preview_rows[header_row_index + 1]]
+        else:
+            sample_values = [""] * len(headers_clean)
+        # Pad to length of headers
+        while len(sample_values) < len(headers_clean):
+            sample_values.append("")
+
+        total_data_rows = get_total_data_rows(path, i, header_row_index)
 
         sheets_with_headers.append({
             "index": i,
             "name": name,
-            "headers": headers,
+            "headers": headers_clean,
             "header_row_index": header_row_index,
             "suggested": suggested,
             "col_letters": col_letters,
             "preview_rows": preview_rows,
+            "sample_values": sample_values,
+            "total_data_rows": total_data_rows,
             "saved_mapping_applied": bool(saved_map),
         })
 

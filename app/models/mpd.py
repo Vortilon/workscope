@@ -28,7 +28,8 @@ class MPDTask(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     dataset_id: Mapped[int] = mapped_column(ForeignKey("mpd_datasets.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    # Core identifiers
+    # Core identifiers — mpd_item_number is the primary key from the manufacturer's document
+    mpd_item_number: Mapped[str] = mapped_column(String(256), nullable=True, index=True)
     task_reference: Mapped[str] = mapped_column(String(256), nullable=True, index=True)
     task_number: Mapped[str] = mapped_column(String(128), nullable=True, index=True)
     task_code: Mapped[str] = mapped_column(String(128), nullable=True, index=True)
