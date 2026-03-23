@@ -101,6 +101,18 @@ def get_sheet_headers(file_path: Path, sheet_index: int, header_row_index: int =
     return headers, guess_idx
 
 
+def get_sheet_rows(file_path: Path, sheet_index: int, max_rows: int = 8) -> list[list]:
+    """Return first max_rows raw rows of the given sheet (for header preview)."""
+    sheets = _load_wb_sheets(file_path)
+    if sheet_index >= len(sheets):
+        return []
+    _, rows = sheets[sheet_index]
+    result = []
+    for row in rows[:max_rows]:
+        result.append([str(v)[:40] if v is not None else "" for v in row])
+    return result
+
+
 def get_default_sheet_indices(sheet_names: list[str], manufacturer: str) -> list[int]:
     """Return list of sheet indices to select by default for this manufacturer."""
     candidates = DEFAULT_SHEETS.get(manufacturer, [])

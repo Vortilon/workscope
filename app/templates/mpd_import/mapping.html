@@ -2,47 +2,96 @@
 {% block title %}Import MPD – Column mapping{% endblock %}
 {% block content %}
 <div class="mb-6">
-  <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Import MPD</h1>
+  <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Import MPD – Column mapping</h1>
   <p class="mt-1 text-gray-500 dark:text-gray-400">
     Map your Excel columns to Scopewrath fields for each selected sheet.
+    {% if manufacturer %}Manufacturer: <strong class="text-gray-700 dark:text-gray-200">{{ manufacturer }}</strong>.{% endif %}
   </p>
+  {% if sheets_with_headers and sheets_with_headers[0].saved_mapping_applied %}
+  <div class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-green-50 border border-green-200 px-3 py-1 text-xs font-medium text-green-700">
+    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+    Previous {{ manufacturer }} mapping applied — verify and adjust if needed.
+  </div>
+  {% endif %}
 </div>
 
 <form action="/mpd/import/run" method="post" class="space-y-8">
   {% for sheet in sheets_with_headers %}
   <div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700">
-    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+
+    {# ── Sheet header ── #}
+    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Sheet: {{ sheet.name }}</h2>
         <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-          Index {{ sheet.index }}, header row guessed as {{ sheet.header_row_index + 1 }} (1-based).
+          {{ sheet.headers | length }} columns detected.
         </p>
-        <input type="hidden" name="headerrow_{{ sheet.index }}" value="{{ sheet.header_row_index }}">
+      </div>
+      {# Header row selector (e) #}
+      <div class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+        <label class="font-medium whitespace-nowrap">Header on row:</label>
+        <div class="flex items-center gap-1">
+          <button type="button"
+                  onclick="adjustHeaderRow('{{ sheet.index }}', -1)"
+                  class="w-6 h-6 rounded border border-gray-300 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold text-sm leading-none">−</button>
+          <input type="number" id="hr_display_{{ sheet.index }}" min="1" max="50"
+                 value="{{ sheet.header_row_index + 1 }}"
+                 onchange="syncHeaderRow('{{ sheet.index }}')"
+                 class="w-14 text-center rounded border border-gray-300 px-1 py-0.5 text-xs dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+          <button type="button"
+                  onclick="adjustHeaderRow('{{ sheet.index }}', 1)"
+                  class="w-6 h-6 rounded border border-gray-300 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold text-sm leading-none">+</button>
+        </div>
+        <input type="hidden" id="headerrow_{{ sheet.index }}" name="headerrow_{{ sheet.index }}" value="{{ sheet.header_row_index }}">
+        <span class="text-gray-400 italic">(1-based; affects import only)</span>
       </div>
     </div>
+
+    {# ── Row preview (e) — first 8 rows of the sheet ── #}
+    {% if sheet.preview_rows %}
+    <div class="px-4 pt-3 pb-1">
+      <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+        First {{ sheet.preview_rows | length }} rows preview
+        <span class="text-gray-400">(guessed header row highlighted in blue)</span>
+      </p>
+      <div class="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-lg">
+        <table class="min-w-full text-[10px] text-gray-600 dark:text-gray-300">
+          <tbody>
+            {% for row in sheet.preview_rows %}
+            <tr class="{% if loop.index0 == sheet.header_row_index %}bg-blue-50 dark:bg-blue-900/30 font-semibold text-blue-800 dark:text-blue-200{% elif loop.index0 % 2 == 0 %}bg-white dark:bg-gray-800{% else %}bg-gray-50 dark:bg-gray-750{% endif %}">
+              <td class="px-2 py-0.5 text-gray-400 select-none w-6 border-r border-gray-100 dark:border-gray-700">{{ loop.index }}</td>
+              {% for cell in row[:20] %}
+              <td class="px-2 py-0.5 border-r border-gray-100 dark:border-gray-700 whitespace-nowrap max-w-[100px] overflow-hidden text-ellipsis" title="{{ cell }}">{{ cell }}</td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Column mapping table ── #}
     <div class="p-4 overflow-x-auto">
       <table class="min-w-full text-xs text-left text-gray-500 dark:text-gray-400">
         <thead>
           <tr>
-            <th class="px-2 py-2 w-40 text-gray-700 dark:text-gray-300">Scopewrath field</th>
-            <th class="px-2 py-2 w-56 text-gray-700 dark:text-gray-300">Excel column</th>
+            <th class="px-2 py-2 w-36 text-gray-700 dark:text-gray-300">Scopewrath field</th>
+            <th class="px-2 py-2 text-gray-700 dark:text-gray-300">Excel column <span class="font-normal text-gray-400">(letter – header name)</span></th>
           </tr>
         </thead>
         <tbody>
           {% for label, key in standard_fields %}
           <tr class="border-t border-gray-100 dark:border-gray-700">
-            <td class="px-2 py-1.5 text-gray-900 dark:text-white">
-              {{ label }}
-            </td>
+            <td class="px-2 py-1.5 text-gray-900 dark:text-white whitespace-nowrap">{{ label }}</td>
             <td class="px-2 py-1.5">
               <select name="map_{{ sheet.index }}_{{ key }}"
-                      class="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-                <option value="__skip__">Skip</option>
+                      class="w-full max-w-xs rounded-md border border-gray-300 bg-white px-2 py-1 text-xs focus:border-dae focus:ring-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                <option value="__skip__">— skip —</option>
                 {% for h in sheet.headers %}
                 {% set idx = loop.index0 %}
-                <option value="{{ idx }}"
-                        {% if sheet.suggested.get(key) == idx %}selected{% endif %}>
-                  {{ h }}
+                <option value="{{ idx }}" {% if sheet.suggested.get(key) == idx %}selected{% endif %}>
+                  {{ sheet.col_letters[idx] }} – {{ h if h else '(empty)' }}
                 </option>
                 {% endfor %}
               </select>
@@ -52,18 +101,41 @@
         </tbody>
       </table>
     </div>
+
   </div>
   {% endfor %}
 
-  <div class="flex gap-3">
-    <a href="/mpd/import/sheets" class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
-      Back
+  <div class="flex gap-3 pt-2">
+    <a href="/mpd/import/sheets"
+       class="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
+      ← Back
     </a>
     <button type="submit"
             class="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90 focus:ring-4 focus:ring-dae/50">
-      Run import
+      Run import →
     </button>
   </div>
 </form>
 {% endblock %}
 
+{% block scripts %}
+<script>
+function adjustHeaderRow(sheetIdx, delta) {
+  const display = document.getElementById('hr_display_' + sheetIdx);
+  const hidden  = document.getElementById('headerrow_'   + sheetIdx);
+  let val = parseInt(display.value, 10) + delta;
+  val = Math.max(1, Math.min(50, val));
+  display.value = val;
+  hidden.value  = val - 1;  // 0-based for the server
+}
+
+function syncHeaderRow(sheetIdx) {
+  const display = document.getElementById('hr_display_' + sheetIdx);
+  const hidden  = document.getElementById('headerrow_'   + sheetIdx);
+  let val = parseInt(display.value, 10) || 1;
+  val = Math.max(1, Math.min(50, val));
+  display.value = val;
+  hidden.value  = val - 1;
+}
+</script>
+{% endblock %}

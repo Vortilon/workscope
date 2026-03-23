@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import IMPORT_TEMP_DIR
+from app.config import IMPORT_TEMP_DIR, BASE_DIR
 from app.database import get_db
 from app.routes.web import _require_login
 from app.services.mpd_import import (
@@ -17,10 +17,47 @@ from app.services.mpd_import import (
     set_dataset_done,
     get_workbook_sheets,
     get_sheet_headers,
+    get_sheet_rows,
     get_default_sheet_indices,
     STANDARD_FIELDS,
     import_mpd_excel_with_mapping,
 )
+
+# ── Saved manufacturer mappings ───────────────────────────────────────────────
+_MAPPINGS_FILE = BASE_DIR / "data" / "manufacturer_mappings.json"
+
+
+def _load_saved_mappings() -> dict:
+    try:
+        if _MAPPINGS_FILE.exists():
+            return json.loads(_MAPPINGS_FILE.read_text())
+    except Exception:
+        pass
+    return {}
+
+
+def _save_manufacturer_mapping(manufacturer: str, column_map: dict) -> None:
+    """Persist a manufacturer → {field: col_index} mapping for future re-use."""
+    if not manufacturer or not column_map:
+        return
+    try:
+        saved = _load_saved_mappings()
+        saved[manufacturer] = column_map
+        _MAPPINGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _MAPPINGS_FILE.write_text(json.dumps(saved, indent=2))
+    except Exception:
+        pass
+
+
+# ── Column letter helper ──────────────────────────────────────────────────────
+def _col_letter(idx: int) -> str:
+    """0-based column index → Excel-style letter (A, B, …, Z, AA, AB, …)"""
+    result = ""
+    n = idx + 1
+    while n > 0:
+        n, r = divmod(n - 1, 26)
+        result = chr(65 + r) + result
+    return result
 
 router = APIRouter()
 BASE = Path(__file__).resolve().parent.parent
@@ -135,7 +172,11 @@ async def import_step_mapping(request: Request):
         all_sheets = get_workbook_sheets(path)
     except Exception:
         return RedirectResponse("/mpd/import/sheets", status_code=303)
-    # Build per-sheet headers and suggest mapping (first column name match)
+
+    manufacturer = request.session.get("mpd_import_manufacturer", "")
+    saved_map = _load_saved_mappings().get(manufacturer, {})
+
+    # Build per-sheet headers and suggest mapping
     sheets_with_headers = []
     for i in sheet_indices:
         i = int(i)
@@ -143,7 +184,8 @@ async def import_step_mapping(request: Request):
             continue
         name = all_sheets[i]["name"]
         headers, header_row_index = get_sheet_headers(path, i)
-        # Suggest: for each STANDARD_FIELDS, find first header that contains the key
+
+        # Heuristic suggestions from header text
         suggested = {}
         for _label, key in STANDARD_FIELDS:
             for hi, h in enumerate(headers):
@@ -153,12 +195,33 @@ async def import_step_mapping(request: Request):
                 if h and key.lower() in h.lower():
                     suggested[key] = hi
                     break
-        sheets_with_headers.append(
-            {"index": i, "name": name, "headers": headers, "header_row_index": header_row_index, "suggested": suggested}
-        )
+
+        # Saved manufacturer mapping overrides heuristic (only if col index still valid)
+        for field_key, col_idx in saved_map.items():
+            if col_idx < len(headers):
+                suggested[field_key] = col_idx
+
+        col_letters = [_col_letter(j) for j in range(len(headers))]
+        preview_rows = get_sheet_rows(path, i, max_rows=8)
+
+        sheets_with_headers.append({
+            "index": i,
+            "name": name,
+            "headers": headers,
+            "header_row_index": header_row_index,
+            "suggested": suggested,
+            "col_letters": col_letters,
+            "preview_rows": preview_rows,
+            "saved_mapping_applied": bool(saved_map),
+        })
+
     return templates.TemplateResponse(
         request, "mpd_import/mapping.html",
-        {"standard_fields": STANDARD_FIELDS, "sheets_with_headers": sheets_with_headers},
+        {
+            "standard_fields": STANDARD_FIELDS,
+            "sheets_with_headers": sheets_with_headers,
+            "manufacturer": manufacturer,
+        },
     )
 
 
@@ -225,6 +288,13 @@ async def import_run(
         si = cfg.get("sheet_index", 0)
         if si in header_rows:
             cfg["header_row_index"] = header_rows[si]
+    # Persist merged column map for this manufacturer (all sheets merged; last sheet wins on conflict)
+    if manufacturer:
+        combined_map: dict[str, int] = {}
+        for cfg in sheet_configs:
+            combined_map.update(cfg.get("column_map", {}))
+        _save_manufacturer_mapping(manufacturer, combined_map)
+
     ds = await create_dataset(db, manufacturer, model, revision, None, path.name)
     total, results = import_mpd_excel_with_mapping(db, ds.id, path, sheet_configs)
     await set_dataset_done(db, ds.id)

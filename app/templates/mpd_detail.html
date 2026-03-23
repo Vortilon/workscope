@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}MPD – {{ dataset.manufacturer }} {{ dataset.model }} {{ dataset.revision }}{% endblock %}
 {% block content %}
-<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
   <div>
     <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
       {{ dataset.manufacturer }} {{ dataset.model }} – {{ dataset.revision }}
@@ -12,39 +12,99 @@
   </div>
   <a href="/mpd"
      class="inline-flex items-center px-3 py-1.5 rounded-md border border-gray-300 text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600">
-    Back to MPD library
+    ← MPD library
   </a>
 </div>
 
+{# ── Filter bar ── #}
+<div class="mb-3 flex flex-wrap gap-2 items-center">
+  <input id="task-filter" type="text" placeholder="Search task ref, title, description, effectivity…"
+         oninput="filterTasks()"
+         class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm w-72 focus:border-dae focus:ring-dae dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:placeholder-gray-400">
+  <span id="filter-count" class="text-xs text-gray-400"></span>
+</div>
+
 <div class="bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700 overflow-x-auto">
-  <table class="min-w-full text-xs text-left text-gray-500 dark:text-gray-400">
+  <table id="tasks-table" class="min-w-full text-xs text-left text-gray-500 dark:text-gray-400">
     <thead class="text-xs text-white uppercase bg-dae">
       <tr>
-        <th class="px-3 py-2">Row</th>
-        <th class="px-3 py-2">Task ref</th>
-        <th class="px-3 py-2">Title</th>
-        <th class="px-3 py-2">Effectivity</th>
-        <th class="px-3 py-2">Threshold</th>
-        <th class="px-3 py-2">Interval</th>
-        <th class="px-3 py-2">Zone</th>
-        <th class="px-3 py-2">Skill</th>
+        <th class="px-3 py-2 w-8">#</th>
+        <th class="px-3 py-2 min-w-[100px]">Task ref</th>
+        <th class="px-3 py-2 min-w-[260px]">Title / Description</th>
+        <th class="px-3 py-2 min-w-[100px]">Threshold</th>
+        <th class="px-3 py-2 min-w-[100px]">Interval</th>
+        <th class="px-3 py-2 min-w-[180px]">Effectivity</th>
+        <th class="px-3 py-2 w-20 text-right">Total MH</th>
       </tr>
     </thead>
     <tbody>
       {% for t in tasks %}
-      <tr class="bg-white border-b last:border-0 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-        <td class="px-3 py-1.5 text-gray-700 dark:text-gray-300">{{ t.row_index }}</td>
-        <td class="px-3 py-1.5 text-gray-900 dark:text-white">{{ t.task_reference }}</td>
-        <td class="px-3 py-1.5">{{ t.title }}</td>
-        <td class="px-3 py-1.5">{{ t.applicability_raw }}</td>
-        <td class="px-3 py-1.5">{{ t.threshold_raw }}</td>
-        <td class="px-3 py-1.5">{{ t.interval_raw }}</td>
-        <td class="px-3 py-1.5">{{ t.zones }}</td>
-        <td class="px-3 py-1.5">{{ t.skill }}</td>
+      {% set title = t.title or "" %}
+      {% set desc  = t.description or "" %}
+      {% set ref   = t.task_reference or "" %}
+      {% set eff_raw = t.applicability_raw or "" %}
+      {% set eff_tok = t.applicability_tokens_normalized or "" %}
+      {# Total MH: zone_mh + access_mh + preparation_mh — parsed as floats, blanks treated as 0 #}
+      {% set mh_zone = (t.zone_mh or "0") | float(default=0) %}
+      {% set mh_acc  = (t.access_mh or "0") | float(default=0) %}
+      {% set mh_prep = (t.preparation_mh or "0") | float(default=0) %}
+      {% set mh_total = mh_zone + mh_acc + mh_prep %}
+      <tr class="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 align-top task-row"
+          data-search="{{ ref }} {{ title }} {{ desc }} {{ eff_raw }}" >
+
+        <td class="px-3 py-2 text-gray-400">{{ t.row_index }}</td>
+
+        {# Task reference #}
+        <td class="px-3 py-2 font-mono text-gray-900 dark:text-white whitespace-nowrap">{{ ref }}</td>
+
+        {# Title + Description merged (d) #}
+        <td class="px-3 py-2 text-gray-700 dark:text-gray-300">
+          {% if title %}
+            <div class="font-semibold text-gray-900 dark:text-white leading-snug">{{ title }}</div>
+            {% if desc and desc != title %}
+            <div class="mt-0.5 text-gray-500 dark:text-gray-400 leading-snug">{{ desc }}</div>
+            {% endif %}
+          {% elif desc %}
+            <div class="text-gray-700 dark:text-gray-300 leading-snug">{{ desc }}</div>
+          {% endif %}
+        </td>
+
+        {# Threshold #}
+        <td class="px-3 py-2 whitespace-nowrap">{{ t.threshold_raw }}</td>
+
+        {# Interval #}
+        <td class="px-3 py-2 whitespace-nowrap">{{ t.interval_raw }}</td>
+
+        {# Effectivity (c): raw text + token pills #}
+        <td class="px-3 py-2">
+          <div class="text-gray-700 dark:text-gray-300 text-[11px] leading-snug">{{ eff_raw }}</div>
+          {% if eff_tok %}
+          <div class="mt-1 flex flex-wrap gap-1">
+            {% for tok in eff_tok.split(",") %}
+            {% if tok.strip() %}
+            <span class="inline-block rounded-full bg-blue-50 border border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700 px-1.5 py-0.5 text-[10px] font-medium leading-none">{{ tok.strip() }}</span>
+            {% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
+        </td>
+
+        {# Total MH (d) #}
+        <td class="px-3 py-2 text-right font-mono text-gray-800 dark:text-gray-200 whitespace-nowrap">
+          {% if mh_total > 0 %}
+            {{ "%.2f" | format(mh_total) }}
+            <div class="text-[9px] text-gray-400 leading-none mt-0.5 font-normal text-left">
+              {% if mh_zone > 0 %}Zn {{ "%.2f" | format(mh_zone) }}{% endif %}
+              {% if mh_acc > 0 %} Ac {{ "%.2f" | format(mh_acc) }}{% endif %}
+              {% if mh_prep > 0 %} Pr {{ "%.2f" | format(mh_prep) }}{% endif %}
+            </div>
+          {% endif %}
+        </td>
+
       </tr>
       {% else %}
       <tr class="bg-white dark:bg-gray-800">
-        <td colspan="8" class="px-3 py-6 text-center text-gray-500 dark:text-gray-400">
+        <td colspan="7" class="px-3 py-8 text-center text-gray-500 dark:text-gray-400">
           No tasks found for this dataset.
         </td>
       </tr>
@@ -54,3 +114,20 @@
 </div>
 {% endblock %}
 
+{% block scripts %}
+<script>
+function filterTasks() {
+  const q = document.getElementById('task-filter').value.trim().toLowerCase();
+  const rows = document.querySelectorAll('#tasks-table .task-row');
+  let visible = 0;
+  rows.forEach(row => {
+    const text = (row.dataset.search || '').toLowerCase();
+    const show = !q || text.includes(q);
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  const counter = document.getElementById('filter-count');
+  counter.textContent = q ? `${visible} of ${rows.length} tasks` : '';
+}
+</script>
+{% endblock %}
