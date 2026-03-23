@@ -34,6 +34,7 @@
           <th class="px-4 py-3">Revision</th>
           <th class="px-4 py-3 text-right">Tasks</th>
           <th class="px-4 py-3 w-10 text-center">File</th>
+          <th class="px-4 py-3 w-10 text-center">Export</th>
           <th class="px-4 py-3">Status</th>
           {% if request.session.get('role') == 'admin' %}
           <th class="px-4 py-3 w-28 text-right">Actions</th>
@@ -81,6 +82,24 @@
               <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M14 2v6h6M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 <text x="6" y="19" font-family="Arial" font-size="6" font-weight="bold" fill="currentColor">XLS</text>
+              </svg>
+            </span>
+            {% endif %}
+          </td>
+
+          {# Excel export icon — available when import is done #}
+          <td class="px-4 py-3 text-center">
+            {% if d.parsed_status == 'done' %}
+            <a href="/mpd/{{ d.id }}/export" title="Export MPD to Excel (for reference only)"
+               class="inline-flex items-center justify-center w-7 h-7 rounded hover:bg-green-50 text-green-700 hover:text-green-800 transition-colors">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+            </a>
+            {% else %}
+            <span class="inline-flex items-center justify-center w-7 h-7 text-gray-300" title="Export not available yet">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
               </svg>
             </span>
             {% endif %}

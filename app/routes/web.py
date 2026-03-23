@@ -234,32 +234,25 @@ async def mpd_dataset_export(request: Request, dataset_id: int, db: AsyncSession
 
     # ── Sheet 2: Tasks ──────────────────────────────────────────────────────────
     ws = wb.create_sheet("Tasks")
-    headers = [
+
+    all_headers = [
         "#", "MPD ITEM #", "TASK REFERENCE", "SECTION",
         "TITLE", "DESCRIPTION",
         "THRESHOLD", "INTERVAL", "EFFECTIVITY",
         "ZONE MH", "ACCESS MH", "PREP MH", "TOTAL MH", "SKILL",
     ]
-    col_widths = [5, 14, 16, 10, 30, 40, 20, 20, 30, 8, 8, 8, 8, 14]
-
-    for ci, (h, w) in enumerate(zip(headers, col_widths), start=1):
-        cell = ws.cell(row=1, column=ci, value=h)
-        cell.fill = _DAE_FILL
-        cell.font = _WHITE_BOLD
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        ws.column_dimensions[get_column_letter(ci)].width = w
-    ws.row_dimensions[1].height = 20
-    ws.freeze_panes = "A2"
+    all_widths = [5, 14, 16, 10, 30, 40, 20, 20, 30, 8, 8, 8, 8, 14]
 
     def _to_lines(raw: str | None) -> str:
         """Convert comma/semicolon-separated values to one per line."""
         if not raw:
             return ""
-        import re as _r
-        parts = [p.strip() for p in _r.split(r"[,;]\s*", raw) if p.strip()]
+        parts = [p.strip() for p in _re.split(r"[,;]\s*", raw) if p.strip()]
         return "\n".join(parts) if len(parts) > 1 else raw
 
-    for ri, t in enumerate(tasks, start=2):
+    # Build all data rows first so we can detect empty columns
+    data_rows: list[list] = []
+    for seq, t in enumerate(tasks, start=1):
         try:
             mh_z = float(t.zone_mh) if t.zone_mh else 0.0
         except Exception:
@@ -274,8 +267,8 @@ async def mpd_dataset_export(request: Request, dataset_id: int, db: AsyncSession
             mh_p = 0.0
         mh_total = mh_z + mh_a + mh_p
 
-        row_vals = [
-            t.row_index,
+        data_rows.append([
+            seq,                          # sequential, unique, starts at 1
             t.mpd_item_number,
             t.task_reference,
             t.section,
@@ -289,10 +282,39 @@ async def mpd_dataset_export(request: Request, dataset_id: int, db: AsyncSession
             mh_p or None,
             mh_total or None,
             t.skill,
-        ]
+        ])
+
+    # Determine which columns have at least one non-empty value (col index 0 = "#" always kept)
+    def _is_empty_val(v) -> bool:
+        if v is None:
+            return True
+        if isinstance(v, str):
+            return v.strip() == ""
+        if isinstance(v, float):
+            return v == 0.0
+        return False
+
+    keep_cols = [
+        ci for ci, h in enumerate(all_headers)
+        if ci == 0 or any(not _is_empty_val(row[ci]) for row in data_rows)
+    ]
+    headers  = [all_headers[ci] for ci in keep_cols]
+    widths   = [all_widths[ci]  for ci in keep_cols]
+
+    for ci_out, (h, w) in enumerate(zip(headers, widths), start=1):
+        cell = ws.cell(row=1, column=ci_out, value=h)
+        cell.fill = _DAE_FILL
+        cell.font = _WHITE_BOLD
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws.column_dimensions[get_column_letter(ci_out)].width = w
+    ws.row_dimensions[1].height = 20
+    ws.freeze_panes = "A2"
+
+    for ri, row_vals_full in enumerate(data_rows, start=2):
+        row_vals = [row_vals_full[ci] for ci in keep_cols]
         max_lines = 1
-        for ci, val in enumerate(row_vals, start=1):
-            cell = ws.cell(row=ri, column=ci, value=val)
+        for ci_out, val in enumerate(row_vals, start=1):
+            cell = ws.cell(row=ri, column=ci_out, value=val)
             cell.font = _NORMAL
             cell.alignment = _WRAP_TOP
             if isinstance(val, str):

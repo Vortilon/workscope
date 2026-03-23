@@ -152,14 +152,56 @@ def normalize_interval_raw(raw: str | None) -> tuple[str, dict[str, Any] | None]
     return (norm_str, {"value": value, "unit": unit_norm})
 
 
+# Keywords that indicate a compound phrase (ATR/Airbus style).
+# If a token contains any of these words it is kept whole, not split further.
+_COMPOUND_KW = re.compile(
+    r'\b(PRE|POST|SB|MSN|FROM|TO|THRU|THROUGH|BLK|BLOCK|CONFIG|WITH|WITHOUT'
+    r'|INCORP|INCORPORATING|APPLICABLE|ALL|CFM|IAE|PWA|GE|LEAP)\b',
+    re.IGNORECASE,
+)
+
+# NOTE tokens are carried for future use but excluded from the crosscheck list.
+_NOTE_KW = re.compile(r'\bNOTE\b', re.IGNORECASE)
+
+
 def normalize_applicability_tokens(raw: str | None) -> list[str]:
-    """Tokenize applicability text (e.g. PRE XXX, POST YYY AND CFM56) into list of tokens."""
+    """Tokenize applicability/effectivity text into individual condition tokens.
+
+    Handles three formats:
+      • ATR/Airbus: "PRE 4511 POST 2595 OR PRE 4511 POST 7378"  → compound phrases kept whole
+      • Boeing:     "800 800BCF 900 900ER"                       → each code is its own token
+      • Mixed:      "A320 A320NEO OR CFM56"                      → split on OR/AND first,
+                    then further split Boeing-style parts on whitespace
+
+    Tokens that contain "NOTE" are silently dropped (reserved for future use).
+    "ALL" tokens are also dropped (not useful for crosscheck).
+    """
     if not raw:
         return []
-    tokens = []
+    tokens: list[str] = []
     s = raw.upper().replace("\n", " ").strip()
+
     for part in re.split(r"\s+AND\s+|\s+OR\s+", s):
         part = part.strip()
-        if part:
-            tokens.append(part)
+        if not part or part == "ALL":
+            continue
+        # If the part contains compound keywords, keep it as one token
+        # (strip any NOTE suffix first)
+        if _COMPOUND_KW.search(part):
+            clean = _NOTE_KW.split(part)[0].strip()  # drop "NOTE …" suffix
+            if clean:
+                tokens.append(clean)
+        elif " " in part:
+            # Boeing-style: space-separated variant codes.
+            # Process word by word; stop at first NOTE word.
+            for code in part.split():
+                code = code.strip()
+                if not code or code == "ALL":
+                    continue
+                if _NOTE_KW.match(code):
+                    break  # drop NOTE and everything after it in this part
+                tokens.append(code)
+        else:
+            if not _NOTE_KW.match(part):
+                tokens.append(part)
     return tokens
