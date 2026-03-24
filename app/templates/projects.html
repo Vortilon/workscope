@@ -16,7 +16,8 @@
         <tr>
           <th scope="col" class="px-4 py-3">MSN</th>
           <th scope="col" class="px-4 py-3">Registration</th>
-          <th scope="col" class="px-4 py-3">Manufacturer / Model</th>
+          <th scope="col" class="px-4 py-3">Aircraft</th>
+          <th scope="col" class="px-4 py-3">Engine</th>
           <th scope="col" class="px-4 py-3">Operator</th>
           <th scope="col" class="px-4 py-3">Status</th>
           <th scope="col" class="px-4 py-3 text-right">Actions</th>
@@ -27,7 +28,16 @@
         <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
           <td class="px-4 py-3 font-medium text-gray-900 dark:text-white font-mono">{{ p.msn }}</td>
           <td class="px-4 py-3 text-gray-600 dark:text-gray-300">{{ p.registration or '—' }}</td>
-          <td class="px-4 py-3">{{ p.manufacturer }} {{ p.model }}</td>
+          <td class="px-4 py-3">
+            {% if p.aircraft_type_id and at_map.get(p.aircraft_type_id) %}
+              <span class="font-mono text-xs font-medium text-gray-900 dark:text-white">{{ at_map[p.aircraft_type_id] }}</span>
+            {% else %}
+              <span class="text-gray-600 dark:text-gray-400">{{ p.manufacturer }} {{ p.model }}</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-xs font-mono text-gray-500 dark:text-gray-400">
+            {{ et_map.get(p.engine_type_id, '—') if p.engine_type_id else '—' }}
+          </td>
           <td class="px-4 py-3 text-gray-600 dark:text-gray-300 text-sm">{{ op_map.get(p.operator_id, '—') }}</td>
           <td class="px-4 py-3">
             <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">{{ p.status }}</span>
@@ -40,7 +50,7 @@
         </tr>
         {% else %}
         <tr class="bg-white dark:bg-gray-800">
-          <td colspan="6" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No projects. <a href="/projects/new" class="text-dae hover:underline">Create one</a>.</td>
+          <td colspan="7" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">No projects. <a href="/projects/new" class="text-dae hover:underline">Create one</a>.</td>
         </tr>
         {% endfor %}
       </tbody>

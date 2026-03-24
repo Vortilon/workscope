@@ -14,11 +14,16 @@
   <div>
     <a href="/projects" class="text-sm text-gray-500 hover:text-dae mb-1 inline-block">← Projects</a>
     <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-      {{ project.manufacturer }} {{ project.model }}
+      {% if aircraft_type %}
+        {{ aircraft_type.manufacturer }} {{ aircraft_type.model }}
+      {% else %}
+        {{ project.manufacturer }} {{ project.model }}
+      {% endif %}
       <span class="font-mono text-dae">{{ project.msn }}</span>
     </h1>
     <div class="flex flex-wrap items-center gap-3 mt-1 text-sm text-gray-500 dark:text-gray-400">
       {% if project.registration %}<span class="font-medium text-gray-700 dark:text-gray-300">{{ project.registration }}</span>{% endif %}
+      {% if engine_type %}<span class="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">{{ engine_type.engine_model }}</span>{% endif %}
       {% if operator_name %}<span>· {{ operator_name }}</span>{% endif %}
       <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">{{ project.status }}</span>
       {% if dataset %}<span>· MPD: {{ dataset.manufacturer }} {{ dataset.model }} {{ dataset.revision }}</span>{% endif %}
@@ -55,14 +60,37 @@
 {# ── Tab: Overview ────────────────────────────────────────────────────────── #}
 <div id="tab-overview" class="tab-content">
   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
-    {# Quick stats #}
     <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
       <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">MSN</div>
       <div class="text-xl font-bold text-gray-900 dark:text-white font-mono">{{ project.msn }}</div>
     </div>
     <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Aircraft</div>
+      <div class="text-sm font-semibold text-gray-900 dark:text-white">
+        {% if aircraft_type %}
+          <span class="font-mono">{{ aircraft_type.model }}</span>
+          <span class="text-xs text-gray-400 block">{{ aircraft_type.manufacturer }}{% if aircraft_type.series and aircraft_type.series != aircraft_type.model %} · {{ aircraft_type.series }}{% endif %}</span>
+        {% else %}
+          {{ project.manufacturer }} {{ project.model }}
+        {% endif %}
+      </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Engine</div>
+      <div class="text-sm font-semibold text-gray-900 dark:text-white">
+        {% if engine_type %}
+          <span class="font-mono">{{ engine_type.engine_model }}</span>
+          <span class="text-xs text-gray-400 block">{{ engine_type.engine_manufacturer }} · {{ engine_type.engine_family }}</span>
+        {% else %}—{% endif %}
+      </div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
       <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Operator</div>
       <div class="text-base font-semibold text-gray-900 dark:text-white">{{ operator_name or '—' }}</div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Registration</div>
+      <div class="text-base font-semibold text-gray-900 dark:text-white">{{ project.registration or '—' }}</div>
     </div>
     <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
       <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">MPD Dataset</div>
@@ -74,10 +102,6 @@
     <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
       <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Workscope rows</div>
       <div class="text-xl font-bold text-gray-900 dark:text-white">{{ ws_rows|length }}</div>
-    </div>
-    <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-      <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Registration</div>
-      <div class="text-base font-semibold text-gray-900 dark:text-white">{{ project.registration or '—' }}</div>
     </div>
     <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
       <div class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Created</div>

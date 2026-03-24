@@ -18,6 +18,7 @@ from app.config import MPD_STORAGE
 from app.database import get_db
 from app.models.mpd import MPDDataset, MPDTask
 from app.models.operator import Operator
+from app.models.aircraft_type import AircraftType, EngineType
 from app.models.project import Project, ProjectConditionAnswer, ConditionAnswerHistory
 from app.models.workscope import WorkscopeImportRow
 from app.services.normalize import (
@@ -128,7 +129,24 @@ async def project_list(request: Request, db: AsyncSession = Depends(get_db)):
     if op_ids:
         ops_res = await db.execute(select(Operator).where(Operator.id.in_(op_ids)))
         op_map = {o.id: o.name for o in ops_res.scalars().all()}
-    return templates.TemplateResponse(request, "projects.html", {"projects": projects, "op_map": op_map})
+    # Resolve aircraft type labels
+    at_ids = {p.aircraft_type_id for p in projects if p.aircraft_type_id}
+    at_map: dict[int, str] = {}
+    if at_ids:
+        at_res = await db.execute(select(AircraftType).where(AircraftType.id.in_(at_ids)))
+        at_map = {a.id: a.display_name_with_series for a in at_res.scalars().all()}
+    # Resolve engine type labels
+    et_ids = {p.engine_type_id for p in projects if p.engine_type_id}
+    et_map: dict[int, str] = {}
+    if et_ids:
+        et_res = await db.execute(select(EngineType).where(EngineType.id.in_(et_ids)))
+        et_map = {e.id: e.engine_model for e in et_res.scalars().all()}
+    return templates.TemplateResponse(request, "projects.html", {
+        "projects": projects,
+        "op_map": op_map,
+        "at_map": at_map,
+        "et_map": et_map,
+    })
 
 
 @router.get("/projects/new", response_class=HTMLResponse)
@@ -137,7 +155,18 @@ async def project_new(request: Request, db: AsyncSession = Depends(get_db)):
         return r
     datasets = (await db.execute(select(MPDDataset).order_by(MPDDataset.manufacturer))).scalars().all()
     operators = (await db.execute(select(Operator).order_by(Operator.name))).scalars().all()
-    return templates.TemplateResponse(request, "project_new.html", {"datasets": datasets, "operators": operators})
+    aircraft_types = (await db.execute(
+        select(AircraftType).order_by(AircraftType.manufacturer, AircraftType.model)
+    )).scalars().all()
+    engine_types = (await db.execute(
+        select(EngineType).order_by(EngineType.engine_manufacturer, EngineType.engine_family, EngineType.engine_model)
+    )).scalars().all()
+    return templates.TemplateResponse(request, "project_new.html", {
+        "datasets": datasets,
+        "operators": operators,
+        "aircraft_types": aircraft_types,
+        "engine_types": engine_types,
+    })
 
 
 @router.get("/projects/{project_id}", response_class=HTMLResponse)
@@ -153,6 +182,16 @@ async def project_detail(request: Request, project_id: int, db: AsyncSession = D
         op = (await db.execute(select(Operator).where(Operator.id == project.operator_id))).scalars().one_or_none()
         if op:
             operator_name = op.name
+    aircraft_type = None
+    if project.aircraft_type_id:
+        aircraft_type = (await db.execute(
+            select(AircraftType).where(AircraftType.id == project.aircraft_type_id)
+        )).scalars().one_or_none()
+    engine_type = None
+    if project.engine_type_id:
+        engine_type = (await db.execute(
+            select(EngineType).where(EngineType.id == project.engine_type_id)
+        )).scalars().one_or_none()
     dataset = None
     if project.mpd_dataset_id:
         dataset = (await db.execute(select(MPDDataset).where(MPDDataset.id == project.mpd_dataset_id))).scalars().one_or_none()
@@ -164,6 +203,8 @@ async def project_detail(request: Request, project_id: int, db: AsyncSession = D
     return templates.TemplateResponse(request, "project_detail.html", {
         "project": project,
         "operator_name": operator_name,
+        "aircraft_type": aircraft_type,
+        "engine_type": engine_type,
         "dataset": dataset,
         "ws_rows": ws_rows,
     })

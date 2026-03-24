@@ -3,6 +3,7 @@ from app.models.audit import AuditLog
 from app.models.user import User
 from app.models.mpd import MPDDataset, MPDTask
 from app.models.operator import Operator
+from app.models.aircraft_type import AircraftType, EngineType
 from app.models.project import (
     ApplicabilityCondition,
     ConditionAnswerHistory,
@@ -24,6 +25,8 @@ from app.models.aviation_document import AviationDocument, AviationDocumentTask,
 __all__ = [
     "User",
     "Operator",
+    "AircraftType",
+    "EngineType",
     "MPDDataset",
     "MPDTask",
     "Project",

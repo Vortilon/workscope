@@ -25,6 +25,8 @@ class ProjectCreate(BaseModel):
     manufacturer: str
     model: str
     msn: str
+    aircraft_type_id: Optional[int] = None
+    engine_type_id: Optional[int] = None
     mpd_dataset_id: Optional[int] = None
     operator_id: Optional[int] = None
     registration: Optional[str] = None
@@ -143,6 +145,8 @@ async def api_create_project(body: ProjectCreate, db: AsyncSession = Depends(get
     p = Project(
         manufacturer=body.manufacturer,
         model=body.model,
+        aircraft_type_id=body.aircraft_type_id,
+        engine_type_id=body.engine_type_id,
         msn=body.msn,
         mpd_dataset_id=body.mpd_dataset_id,
         operator_id=body.operator_id,

@@ -6,61 +6,237 @@
   <p class="mt-1 text-gray-500 dark:text-gray-400">Create a workscope evaluation for one aircraft MSN.</p>
 </div>
 
-<div class="max-w-xl">
+<div class="max-w-2xl">
+  <div id="form-error" class="hidden mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 text-red-700 dark:text-red-400 text-sm"></div>
+
   <form id="project-form" class="space-y-5 p-6 bg-white border border-gray-200 rounded-xl shadow-sm dark:bg-gray-800 dark:border-gray-700">
+
+    {# ── Aircraft type ────────────────────────────────────────────────────── #}
     <div>
-      <label for="manufacturer" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Manufacturer</label>
-      <input type="text" id="manufacturer" name="manufacturer" required class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+      <label for="aircraft_type_id" class="block mb-1.5 text-sm font-medium text-gray-900 dark:text-white">
+        Aircraft <span class="text-red-500">*</span>
+      </label>
+      <div class="relative">
+        <input id="aircraft-search" type="text" autocomplete="off" placeholder="Type to search — e.g. A320, 737-800, ATR 72…"
+          class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          oninput="filterAircraft(this.value)" onfocus="showAcList()" onblur="hideAcList()">
+        <input type="hidden" id="aircraft_type_id" name="aircraft_type_id">
+        <input type="hidden" id="aircraft_manufacturer" name="aircraft_manufacturer">
+        <input type="hidden" id="aircraft_model" name="aircraft_model">
+        <div id="aircraft-dropdown"
+          class="hidden absolute z-20 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto text-sm">
+          {% for ac in aircraft_types %}
+          <div class="ac-option px-3 py-2 cursor-pointer hover:bg-dae/10 dark:hover:bg-dae/20 text-gray-800 dark:text-gray-200"
+               data-id="{{ ac.id }}"
+               data-mfr="{{ ac.manufacturer }}"
+               data-model="{{ ac.model }}"
+               data-series="{{ ac.series or '' }}"
+               data-label="{{ ac.manufacturer }} – {{ ac.model }}{% if ac.series and ac.series != ac.model %} ({{ ac.series }}){% endif %}"
+               data-filter="{{ (ac.manufacturer ~ ' ' ~ ac.model ~ ' ' ~ (ac.series or ''))|lower }}"
+               onmousedown="selectAircraft(this)">
+            <span class="font-medium">{{ ac.manufacturer }}</span>
+            <span class="mx-1 text-gray-400">–</span>
+            <span class="font-mono">{{ ac.model }}</span>
+            {% if ac.series and ac.series != ac.model %}
+            <span class="ml-1 text-xs text-gray-400">({{ ac.series }})</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+          <div id="ac-no-results" class="hidden px-3 py-2 text-gray-400 text-xs italic">No matching aircraft. <a href="/admin/aircraft" class="text-dae hover:underline">Add it →</a></div>
+        </div>
+      </div>
+      <p id="aircraft-badge" class="hidden mt-1.5 text-xs text-green-700 dark:text-green-400 font-medium"></p>
     </div>
+
+    {# ── Engine type ──────────────────────────────────────────────────────── #}
     <div>
-      <label for="model" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Model</label>
-      <input type="text" id="model" name="model" required class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+      <label for="engine_type_id" class="block mb-1.5 text-sm font-medium text-gray-900 dark:text-white">Engine</label>
+      <div class="relative">
+        <input id="engine-search" type="text" autocomplete="off" placeholder="Type to search — e.g. CFM56-7B, V2527, PW127…"
+          class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          oninput="filterEngine(this.value)" onfocus="showEngList()" onblur="hideEngList()">
+        <input type="hidden" id="engine_type_id" name="engine_type_id">
+        <div id="engine-dropdown"
+          class="hidden absolute z-20 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto text-sm">
+          {% for eng in engine_types %}
+          <div class="eng-option px-3 py-2 cursor-pointer hover:bg-dae/10 dark:hover:bg-dae/20 text-gray-800 dark:text-gray-200"
+               data-id="{{ eng.id }}"
+               data-label="{{ eng.engine_manufacturer }} – {{ eng.engine_model }} ({{ eng.engine_family }})"
+               data-filter="{{ (eng.engine_manufacturer ~ ' ' ~ eng.engine_family ~ ' ' ~ eng.engine_model)|lower }}"
+               onmousedown="selectEngine(this)">
+            <span class="font-medium">{{ eng.engine_manufacturer }}</span>
+            <span class="mx-1 text-gray-400">–</span>
+            <span class="font-mono font-semibold">{{ eng.engine_model }}</span>
+            <span class="ml-1 text-xs text-gray-400">({{ eng.engine_family }})</span>
+          </div>
+          {% endfor %}
+          <div id="eng-no-results" class="hidden px-3 py-2 text-gray-400 text-xs italic">No matching engine. <a href="/admin/engines" class="text-dae hover:underline">Add it →</a></div>
+        </div>
+      </div>
+      <p id="engine-badge" class="hidden mt-1.5 text-xs text-green-700 dark:text-green-400 font-medium"></p>
     </div>
-    <div>
-      <label for="msn" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">MSN</label>
-      <input type="text" id="msn" name="msn" required class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+
+    {# ── MSN ──────────────────────────────────────────────────────────────── #}
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label for="msn" class="block mb-1.5 text-sm font-medium text-gray-900 dark:text-white">MSN <span class="text-red-500">*</span></label>
+        <input type="text" id="msn" name="msn" required placeholder="e.g. 12345"
+          class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+      </div>
+      <div>
+        <label for="registration" class="block mb-1.5 text-sm font-medium text-gray-900 dark:text-white">Registration</label>
+        <input type="text" id="registration" name="registration" placeholder="e.g. A6-EFX"
+          class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+      </div>
     </div>
+
+    {# ── Operator ─────────────────────────────────────────────────────────── #}
     <div>
-      <label for="registration" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Registration (optional)</label>
-      <input type="text" id="registration" name="registration" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-    </div>
-    <div>
-      <label for="mpd_dataset_id" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">MPD Dataset</label>
-      <select id="mpd_dataset_id" name="mpd_dataset_id" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-        <option value="">— Select —</option>
-        {% for d in datasets %}
-        <option value="{{ d.id }}">{{ d.manufacturer }} {{ d.model }} {{ d.revision }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div>
-      <label for="operator_id" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">Operator</label>
-      <select id="operator_id" name="operator_id" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae block w-full p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+      <label for="operator_id" class="block mb-1.5 text-sm font-medium text-gray-900 dark:text-white">Operator</label>
+      <select id="operator_id" name="operator_id"
+        class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
         <option value="">— Select operator —</option>
         {% for op in operators %}
         <option value="{{ op.id }}">{{ op.name }}</option>
         {% endfor %}
       </select>
     </div>
-    <button type="submit" class="text-white bg-dae hover:bg-dae/90 focus:ring-4 focus:ring-dae/30 font-medium rounded-lg text-sm px-5 py-2.5">Create Project</button>
+
+    {# ── MPD Dataset ──────────────────────────────────────────────────────── #}
+    <div>
+      <label for="mpd_dataset_id" class="block mb-1.5 text-sm font-medium text-gray-900 dark:text-white">MPD Dataset</label>
+      <select id="mpd_dataset_id" name="mpd_dataset_id"
+        class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        <option value="">— Select MPD —</option>
+        {% for d in datasets %}
+        <option value="{{ d.id }}">{{ d.manufacturer }} {{ d.model }} – Rev. {{ d.revision }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="pt-1">
+      <button type="submit" id="submit-btn"
+        class="bg-dae hover:bg-dae/90 text-white font-medium rounded-lg text-sm px-6 py-2.5 focus:ring-4 focus:ring-dae/30 disabled:opacity-50 transition-colors">
+        Create Project
+      </button>
+    </div>
   </form>
 </div>
 
 <script>
+// ── Aircraft dropdown logic ────────────────────────────────────────────────
+let _acSelected = false, _engSelected = false;
+
+function showAcList() {
+  document.getElementById('aircraft-dropdown').classList.remove('hidden');
+  filterAircraft(document.getElementById('aircraft-search').value);
+}
+function hideAcList() {
+  setTimeout(() => document.getElementById('aircraft-dropdown').classList.add('hidden'), 150);
+}
+function filterAircraft(q) {
+  q = q.toLowerCase();
+  let any = false;
+  document.querySelectorAll('.ac-option').forEach(el => {
+    const show = !q || el.dataset.filter.includes(q);
+    el.style.display = show ? '' : 'none';
+    if (show) any = true;
+  });
+  document.getElementById('ac-no-results').classList.toggle('hidden', any);
+  document.getElementById('aircraft-dropdown').classList.remove('hidden');
+}
+function selectAircraft(el) {
+  document.getElementById('aircraft_type_id').value = el.dataset.id;
+  document.getElementById('aircraft_manufacturer').value = el.dataset.mfr;
+  document.getElementById('aircraft_model').value = el.dataset.model;
+  document.getElementById('aircraft-search').value = el.dataset.label;
+  const badge = document.getElementById('aircraft-badge');
+  badge.textContent = '✓ ' + el.dataset.label;
+  badge.classList.remove('hidden');
+  _acSelected = true;
+}
+
+// ── Engine dropdown logic ──────────────────────────────────────────────────
+function showEngList() {
+  document.getElementById('engine-dropdown').classList.remove('hidden');
+  filterEngine(document.getElementById('engine-search').value);
+}
+function hideEngList() {
+  setTimeout(() => document.getElementById('engine-dropdown').classList.add('hidden'), 150);
+}
+function filterEngine(q) {
+  q = q.toLowerCase();
+  let any = false;
+  document.querySelectorAll('.eng-option').forEach(el => {
+    const show = !q || el.dataset.filter.includes(q);
+    el.style.display = show ? '' : 'none';
+    if (show) any = true;
+  });
+  document.getElementById('eng-no-results').classList.toggle('hidden', any);
+  document.getElementById('engine-dropdown').classList.remove('hidden');
+}
+function selectEngine(el) {
+  document.getElementById('engine_type_id').value = el.dataset.id;
+  document.getElementById('engine-search').value = el.dataset.label;
+  const badge = document.getElementById('engine-badge');
+  badge.textContent = '✓ ' + el.dataset.label;
+  badge.classList.remove('hidden');
+}
+
+// ── Form submission ────────────────────────────────────────────────────────
 document.getElementById('project-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const fd = new FormData(e.target);
+
+  // Derive manufacturer/model from selected aircraft or fallback to search text
+  const mfr = fd.get('aircraft_manufacturer') || document.getElementById('aircraft-search').value.split('–')[0]?.trim() || 'Unknown';
+  const mdl = fd.get('aircraft_model') || document.getElementById('aircraft-search').value.split('–')[1]?.trim() || 'Unknown';
+  const msn = fd.get('msn')?.trim();
+  if (!msn) {
+    showErr('MSN is required.');
+    return;
+  }
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Creating…';
+
   const body = {
-    manufacturer: fd.get('manufacturer'),
-    model: fd.get('model'),
-    msn: fd.get('msn'),
+    manufacturer: mfr,
+    model: mdl,
+    aircraft_type_id: fd.get('aircraft_type_id') ? parseInt(fd.get('aircraft_type_id')) : null,
+    engine_type_id: fd.get('engine_type_id') ? parseInt(fd.get('engine_type_id')) : null,
+    msn: msn,
     registration: fd.get('registration') || null,
     mpd_dataset_id: fd.get('mpd_dataset_id') ? parseInt(fd.get('mpd_dataset_id')) : null,
     operator_id: fd.get('operator_id') ? parseInt(fd.get('operator_id')) : null,
   };
-  const r = await fetch('/api/projects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const j = await r.json();
-  if (j.id) window.location.href = '/projects/' + j.id;
+
+  try {
+    const r = await fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const j = await r.json();
+    if (j.id) {
+      window.location.href = '/projects/' + j.id;
+    } else {
+      showErr(j.detail || 'Failed to create project.');
+      btn.disabled = false;
+      btn.textContent = 'Create Project';
+    }
+  } catch (err) {
+    showErr('Network error: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = 'Create Project';
+  }
 });
+
+function showErr(msg) {
+  const el = document.getElementById('form-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
 </script>
 {% endblock %}

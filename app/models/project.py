@@ -10,8 +10,10 @@ class Project(Base):
     __tablename__ = "projects"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    manufacturer: Mapped[str] = mapped_column(String(64), nullable=False)
-    model: Mapped[str] = mapped_column(String(64), nullable=False)
+    manufacturer: Mapped[str] = mapped_column(String(128), nullable=False)
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    aircraft_type_id: Mapped[int] = mapped_column(ForeignKey("aircraft_types.id"), nullable=True, index=True)
+    engine_type_id: Mapped[int] = mapped_column(ForeignKey("engine_types.id"), nullable=True, index=True)
     mpd_dataset_id: Mapped[int] = mapped_column(ForeignKey("mpd_datasets.id"), nullable=True, index=True)
     operator_id: Mapped[int] = mapped_column(ForeignKey("operators.id"), nullable=True, index=True)
     msn: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
@@ -23,6 +25,8 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    aircraft_type: Mapped["AircraftType"] = relationship("AircraftType", back_populates="projects")
+    engine_type: Mapped["EngineType"] = relationship("EngineType", back_populates="projects")
     operator: Mapped["Operator"] = relationship("Operator", back_populates="projects")
     files: Mapped[list["ProjectFile"]] = relationship("ProjectFile", back_populates="project", cascade="all, delete-orphan")
     parsed_rows: Mapped[list["ParsedWorkscopeRow"]] = relationship(
