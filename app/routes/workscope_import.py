@@ -233,6 +233,23 @@ async def ws_mapping_get(
     total_data_rows = max(0, len(rows) - header_row - 1)
     guessed = _guess_mapping(header)
 
+    # Scan interval/threshold/mh columns for unknown or ambiguous units
+    from app.services.normalize import scan_column_for_unknown_units
+    unit_warnings: list[dict] = []
+    interval_kws = {"interval", "threshold", "limit", "mh", "man", "hour", "fh", "fc"}
+    for ci, info in enumerate(col_infos):
+        if not any(kw in info["caption"].lower() for kw in interval_kws):
+            continue
+        col_vals = [
+            rows[r][ci] for r in range(header_row + 1, len(rows))
+            if ci < len(rows[r]) and rows[r][ci]
+        ][:100]  # scan first 100 data rows
+        for w in scan_column_for_unknown_units(col_vals):
+            w["col_letter"] = info["letter"]
+            w["col_caption"] = info["caption"]
+            if not any(x["unit"] == w["unit"] for x in unit_warnings):
+                unit_warnings.append(w)
+
     return templates.TemplateResponse(request, "workscope_import/mapping.html", {
         "project": project,
         "sheets": sheets,
@@ -245,6 +262,7 @@ async def ws_mapping_get(
         "guessed": guessed,
         "total_data_rows": total_data_rows,
         "filename": sess.get("filename", ""),
+        "unit_warnings": unit_warnings,
     })
 
 

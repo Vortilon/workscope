@@ -32,15 +32,19 @@ from typing import Any
 # ── Unit tables ───────────────────────────────────────────────────────────────
 
 # Canonical unit names used internally
-INTERVAL_UNITS = {"FH", "FC", "C", "YR", "YE", "MO", "DY", "WY", "HR"}
+INTERVAL_UNITS = {"FH", "FC", "C", "LDG", "YR", "YE", "MO", "DY", "WY"}
 
-# Raw text → canonical unit.  Lower-case keys are intentional (input is .upper()d).
+# Raw text → canonical unit.
+# Keys are UPPER-CASE (input is always .upper()d before lookup).
 UNIT_ALIASES: dict[str, str] = {
     # ── Flight hours ───────────────────────────────────────────────────────
     "FH": "FH", "FLH": "FH", "FLT HRS": "FH", "FLTHRS": "FH",
-    "HR": "FH", "HRS": "FH", "HOURS": "FH",
-    # ── Flight cycles ──────────────────────────────────────────────────────
+    "HR": "FH", "HRS": "FH", "HOURS": "FH", "FLT": "FH",
+    "EFH": "FH",   # equivalent flight hours (turboprop / helicopter)
+    "BH": "FH",    # block hours (regional / turboprop operators)
+    # ── Flight / landing cycles ────────────────────────────────────────────
     "FC": "FC", "CYCS": "FC",
+    "LDG": "LDG", "LDGS": "LDG",   # landings — kept separate from FC for accuracy
     # ── Generic cycles (ATR) ───────────────────────────────────────────────
     "C": "C", "CY": "C",
     # ── Calendar years ─────────────────────────────────────────────────────
@@ -48,15 +52,102 @@ UNIT_ALIASES: dict[str, str] = {
     "YE": "YE",                                               # Airbus / ATR
     # ── Months ─────────────────────────────────────────────────────────────
     "MO": "MO", "MOS": "MO", "MON": "MO", "MONTH": "MO", "MONTHS": "MO",
-    "MT": "MO",   # variant used in some workscopes
+    "MT": "MO",     # variant used in some workscopes
     # ── Days ───────────────────────────────────────────────────────────────
-    "DY": "DY", "DAY": "DY", "DAYS": "DY",
-    # ── Weeks (ATR WY = weekly) ────────────────────────────────────────────
+    "DY": "DY", "DAY": "DY", "DAYS": "DY", "CH": "DY",   # CH = calendar hours (24 h = 1 day)
+    # ── Weeks ─────────────────────────────────────────────────────────────
     "WY": "WY", "WK": "WY", "WEEK": "WY", "WEEKS": "WY",
 }
 
-# Special non-numeric interval values that are valid and should be kept as-is.
-SPECIAL_INTERVAL_VALUES = {"NR", "A", "WY"}
+# Special non-numeric interval values — valid but not paired with a number.
+SPECIAL_INTERVAL_VALUES = {"NR", "A", "WY", "OC", "SVC"}
+
+# Units that cannot be compared directly against each other (require clarification).
+# Key = raw abbreviation found in import, value = (canonical, question to ask user).
+AMBIGUOUS_UNITS: dict[str, tuple[str, str]] = {
+    "BH":  ("FH",  "Block Hours (BH) — treat as Flight Hours?"),
+    "EFH": ("FH",  "Equivalent Flight Hours (EFH) — treat as Flight Hours?"),
+    "LDG": ("LDG", "Landings (LDG) — note: NOT the same as Flight Cycles (FC)"),
+    "LDGS":("LDG", "Landings (LDGS) — note: NOT the same as Flight Cycles (FC)"),
+    "CH":  ("DY",  "Calendar Hours (CH) — treating 1 CH as 1 Day. Correct?"),
+    "C":   ("C",   "Cycles (C) — ATR uses C for pressure cycles. Confirm this is cycles, not calendar?"),
+}
+
+# ── Unit detection helpers ────────────────────────────────────────────────────
+
+# Regex to find "NUMBER UNIT" patterns inside a free-text string
+_INTERVAL_TOKEN_RE = re.compile(
+    r'\b(\d+(?:\.\d+)?)\s*([A-Z]{1,6})\b',
+    re.IGNORECASE,
+)
+
+
+def detect_units_in_text(text: str) -> list[dict]:
+    """Scan free text and return all interval-like tokens with their canonical unit.
+
+    Returns a list of dicts:
+      { "raw": "36 MO", "value": 36, "unit_raw": "MO",
+        "unit_canonical": "MO", "ambiguous": False,
+        "ambiguous_note": "" }
+
+    Unknown units (not in UNIT_ALIASES) are flagged with unit_canonical=None.
+    Ambiguous units (in AMBIGUOUS_UNITS) are flagged so callers can prompt the user.
+    """
+    results = []
+    seen = set()
+    for m in _INTERVAL_TOKEN_RE.finditer(text.upper()):
+        val_str, unit_raw = m.group(1), m.group(2)
+        key = (val_str, unit_raw)
+        if key in seen:
+            continue
+        seen.add(key)
+        canonical = UNIT_ALIASES.get(unit_raw)
+        is_ambiguous = unit_raw in AMBIGUOUS_UNITS
+        results.append({
+            "raw": m.group(0),
+            "value": float(val_str),
+            "unit_raw": unit_raw,
+            "unit_canonical": canonical,
+            "known": canonical is not None,
+            "ambiguous": is_ambiguous,
+            "ambiguous_note": AMBIGUOUS_UNITS.get(unit_raw, ("", ""))[1],
+        })
+    return results
+
+
+def scan_column_for_unknown_units(values: list[str]) -> list[dict]:
+    """Scan a list of cell values (e.g. a workscope interval column) and return
+    any unit abbreviations that are unknown or ambiguous.
+
+    Returns a deduplicated list of warning dicts suitable for showing in the
+    import mapping UI.
+    """
+    seen_units: set[str] = set()
+    warnings: list[dict] = []
+    for cell in values:
+        if not cell:
+            continue
+        for tok in detect_units_in_text(cell):
+            u = tok["unit_raw"]
+            if u in seen_units:
+                continue
+            seen_units.add(u)
+            if not tok["known"]:
+                warnings.append({
+                    "unit": u,
+                    "example": tok["raw"],
+                    "kind": "unknown",
+                    "message": f"Unknown unit '{u}' — not in unit table. Please check.",
+                })
+            elif tok["ambiguous"]:
+                warnings.append({
+                    "unit": u,
+                    "example": tok["raw"],
+                    "kind": "ambiguous",
+                    "message": tok["ambiguous_note"],
+                })
+    return warnings
+
 
 # ── Regex patterns ────────────────────────────────────────────────────────────
 
