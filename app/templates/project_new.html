@@ -104,12 +104,25 @@
 
     {# ── MPD Dataset ──────────────────────────────────────────────────────── #}
     <div>
-      <label for="mpd_dataset_id" class="block mb-1.5 text-sm font-medium text-gray-900 dark:text-white">MPD Dataset</label>
+      <div class="flex items-center justify-between mb-1.5">
+        <label for="mpd_dataset_id" class="text-sm font-medium text-gray-900 dark:text-white">MPD Dataset</label>
+        <span id="mpd-hint" class="hidden text-xs text-amber-600 dark:text-amber-400">
+          Filtered to aircraft manufacturer ·
+          <button type="button" class="underline hover:text-amber-800" onclick="showAllMpds()">show all</button>
+        </span>
+      </div>
       <select id="mpd_dataset_id" name="mpd_dataset_id"
         class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-dae focus:border-dae p-2.5 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
         <option value="">— Select MPD —</option>
-        {% for d in datasets %}
-        <option value="{{ d.id }}">{{ d.manufacturer }} {{ d.model }} – Rev. {{ d.revision }}</option>
+        {% for d in datasets | sort(attribute='is_superseded') %}
+        {% if d.parsed_status == 'done' %}
+        <option value="{{ d.id }}"
+          data-mfr="{{ d.manufacturer|lower }}"
+          data-superseded="{{ 'true' if d.is_superseded else 'false' }}">
+          {{ d.manufacturer }} {{ d.model }} – Rev. {{ d.revision }}
+          {{ ' (Superseded)' if d.is_superseded else ' (Latest)' }}
+        </option>
+        {% endif %}
         {% endfor %}
       </select>
     </div>
@@ -154,6 +167,31 @@ function selectAircraft(el) {
   badge.textContent = '✓ ' + el.dataset.label;
   badge.classList.remove('hidden');
   _acSelected = true;
+  // Filter MPD dropdown to match manufacturer
+  filterMpdByManufacturer(el.dataset.mfr.toLowerCase());
+}
+
+function filterMpdByManufacturer(mfr) {
+  const sel = document.getElementById('mpd_dataset_id');
+  const hint = document.getElementById('mpd-hint');
+  let anyVisible = false;
+  for (const opt of sel.options) {
+    if (!opt.value) { opt.style.display = ''; continue; }
+    const match = opt.dataset.mfr && opt.dataset.mfr.includes(mfr.split(' ')[0]);
+    opt.style.display = match ? '' : 'none';
+    if (match) anyVisible = true;
+  }
+  // If current selection was hidden, reset
+  if (sel.value && sel.options[sel.selectedIndex]?.style.display === 'none') sel.value = '';
+  hint.classList.toggle('hidden', !mfr || !anyVisible);
+  if (!anyVisible && mfr) hint.innerHTML = 'No MPD found for this manufacturer · <button type="button" class="underline hover:text-amber-800" onclick="showAllMpds()">show all</button>';
+  else hint.innerHTML = 'Filtered to aircraft manufacturer · <button type="button" class="underline hover:text-amber-800" onclick="showAllMpds()">show all</button>';
+}
+
+function showAllMpds() {
+  const sel = document.getElementById('mpd_dataset_id');
+  for (const opt of sel.options) opt.style.display = '';
+  document.getElementById('mpd-hint').classList.add('hidden');
 }
 
 // ── Engine dropdown logic ──────────────────────────────────────────────────

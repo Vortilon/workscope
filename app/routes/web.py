@@ -14,7 +14,7 @@ from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment
 from openpyxl.utils import get_column_letter
 
-from app.config import MPD_STORAGE
+from app.config import MPD_STORAGE, UPLOAD_DIR
 from app.database import get_db
 from app.models.mpd import MPDDataset, MPDTask
 from app.models.operator import Operator
@@ -208,6 +208,38 @@ async def project_detail(request: Request, project_id: int, db: AsyncSession = D
         "dataset": dataset,
         "ws_rows": ws_rows,
     })
+
+
+@router.post("/projects/{project_id}/delete", response_class=HTMLResponse)
+async def project_delete(request: Request, project_id: int, db: AsyncSession = Depends(get_db)):
+    """Admin-only: permanently delete a project and all its related data and files."""
+    if (r := _require_login(request)):
+        return r
+    if (r := _require_admin(request)):
+        return r
+    project = (await db.execute(select(Project).where(Project.id == project_id))).scalars().one_or_none()
+    if not project:
+        return RedirectResponse("/projects", status_code=303)
+
+    # Delete any uploaded project files stored on disk
+    from app.models.project import ProjectFile, ModificationEvidenceFile
+    files_res = await db.execute(select(ProjectFile).where(ProjectFile.project_id == project_id))
+    for pf in files_res.scalars().all():
+        if pf.filename:
+            for candidate in [UPLOAD_DIR / pf.filename, UPLOAD_DIR / f"project_{project_id}" / pf.filename]:
+                if candidate.exists():
+                    candidate.unlink(missing_ok=True)
+
+    ev_res = await db.execute(select(ModificationEvidenceFile).where(ModificationEvidenceFile.project_id == project_id))
+    for ef in ev_res.scalars().all():
+        if ef.filename:
+            for candidate in [UPLOAD_DIR / ef.filename, UPLOAD_DIR / f"project_{project_id}" / ef.filename]:
+                if candidate.exists():
+                    candidate.unlink(missing_ok=True)
+
+    await db.delete(project)
+    await db.commit()
+    return RedirectResponse("/projects", status_code=303)
 
 
 @router.get("/mpd/{dataset_id}/download")

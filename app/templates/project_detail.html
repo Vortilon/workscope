@@ -13,26 +13,48 @@
 <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
   <div>
     <a href="/projects" class="text-sm text-gray-500 hover:text-dae mb-1 inline-block">← Projects</a>
-    <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
-      {% if aircraft_type %}
-        {{ aircraft_type.manufacturer }} {{ aircraft_type.model }}
-      {% else %}
-        {{ project.manufacturer }} {{ project.model }}
-      {% endif %}
-      <span class="font-mono text-dae">{{ project.msn }}</span>
+    {# Line 1: MSN <MSN> | MANUFACTURER | MODEL — all caps #}
+    {% set _mfr = (aircraft_type.manufacturer if aircraft_type else project.manufacturer)|upper %}
+    {% set _mdl = (aircraft_type.model if aircraft_type else project.model)|upper %}
+    <h1 class="text-2xl font-bold text-gray-900 dark:text-white tracking-tight font-mono">
+      MSN {{ project.msn|upper }}
+      <span class="text-gray-300 dark:text-gray-600 mx-1">|</span>
+      <span class="text-dae">{{ _mfr }}</span>
+      <span class="text-gray-300 dark:text-gray-600 mx-1">|</span>
+      {{ _mdl }}
     </h1>
-    <div class="flex flex-wrap items-center gap-3 mt-1 text-sm text-gray-500 dark:text-gray-400">
-      {% if project.registration %}<span class="font-medium text-gray-700 dark:text-gray-300">{{ project.registration }}</span>{% endif %}
-      {% if engine_type %}<span class="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">{{ engine_type.engine_model }}</span>{% endif %}
-      {% if operator_name %}<span>· {{ operator_name }}</span>{% endif %}
+    {# Line 2: Registration | Engine | Operator — all caps #}
+    <p class="text-sm font-semibold tracking-wide text-gray-500 dark:text-gray-400 mt-0.5">
+      {% set _parts = [] %}
+      {% if project.registration %}{% set _parts = _parts + [project.registration|upper] %}{% endif %}
+      {% if engine_type %}{% set _parts = _parts + [engine_type.engine_model|upper] %}{% endif %}
+      {% if operator_name %}{% set _parts = _parts + [operator_name|upper] %}{% endif %}
+      {% if aircraft_type and aircraft_type.series and aircraft_type.series != (aircraft_type.model) %}{% set _parts = _parts + ['SERIES ' ~ aircraft_type.series|upper] %}{% endif %}
+      {{ _parts | join(' | ') if _parts else '&nbsp;' }}
+    </p>
+    <div class="flex flex-wrap items-center gap-2 mt-1.5">
       <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">{{ project.status }}</span>
-      {% if dataset %}<span>· MPD: {{ dataset.manufacturer }} {{ dataset.model }} {{ dataset.revision }}</span>{% endif %}
+      {% if dataset %}<span class="text-xs text-gray-400">MPD: {{ dataset.manufacturer }} {{ dataset.model }} {{ dataset.revision }}</span>{% endif %}
     </div>
   </div>
-  <a href="/report/{{ project.id }}"
-     class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90 shrink-0">
-    View Report
-  </a>
+  <div class="flex items-center gap-2 shrink-0">
+    <a href="/report/{{ project.id }}"
+       class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90">
+      View Report
+    </a>
+    {% if request.session.get('role') == 'admin' %}
+    <form method="post" action="/projects/{{ project.id }}/delete"
+      onsubmit="return confirm('Permanently delete project MSN {{ project.msn }}?\nAll workscope data, files and answers will be removed. Cannot be undone.')">
+      <button type="submit" title="Delete project"
+        class="inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20 transition-colors">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+        Delete
+      </button>
+    </form>
+    {% endif %}
+  </div>
 </div>
 
 {# ── Tabs ─────────────────────────────────────────────────────────────────── #}
