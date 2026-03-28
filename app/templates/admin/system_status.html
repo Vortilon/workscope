@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}System Status – Scopewrath{% endblock %}
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+  <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">System Status</h1>
+  <button id="runTestBtn" onclick="runTest()"
+    class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-dae rounded-lg hover:bg-dae/90 focus:ring-4 focus:ring-dae/50">
+    <svg id="btnIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span id="btnLabel">Run AI Test</span>
+  </button>
+</div>
+
+<!-- Static services -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+  <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+    <div class="flex items-center justify-between mb-1">
+      <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Scopewrath (this app)</span>
+      <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3"/></svg>
+        Online
+      </span>
+    </div>
+    <p class="text-xs text-gray-500">mpd.noteify.us · Port 8084</p>
+  </div>
+
+  <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+    <div class="flex items-center justify-between mb-1">
+      <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Perkins AI</span>
+      <span id="perkinsStatus"
+        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
+        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3"/></svg>
+        Not tested
+      </span>
+    </div>
+    <p class="text-xs text-gray-500">{{ perkins_url or "PERKINS_URL not configured" }}</p>
+  </div>
+</div>
+
+<!-- Test results panel -->
+<div id="testPanel" class="hidden">
+  <h2 class="text-lg font-semibold text-gray-800 dark:text-white mb-3">AI Test Results</h2>
+
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+    <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-center">
+      <p class="text-xs text-gray-500 mb-1">First token</p>
+      <p id="metaFirstToken" class="text-2xl font-bold text-gray-900 dark:text-white">—</p>
+    </div>
+    <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-center">
+      <p class="text-xs text-gray-500 mb-1">Total response</p>
+      <p id="metaTotal" class="text-2xl font-bold text-gray-900 dark:text-white">—</p>
+    </div>
+    <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-center">
+      <p class="text-xs text-gray-500 mb-1">Tokens generated</p>
+      <p id="metaTokens" class="text-2xl font-bold text-gray-900 dark:text-white">—</p>
+    </div>
+  </div>
+
+  <div class="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+    <p class="text-xs text-gray-500 mb-2 font-medium">Test question: <em>"What is an airworthiness directive? Answer in one sentence."</em></p>
+    <div id="testAnswer" class="text-sm text-gray-800 dark:text-gray-200 leading-relaxed min-h-[2.5rem] whitespace-pre-wrap"></div>
+    <div id="testError" class="hidden text-sm text-red-600 font-medium mt-2"></div>
+  </div>
+</div>
+
+<!-- Progress bar (visible during test) -->
+<div id="progressWrap" class="hidden mt-4">
+  <div class="flex items-center gap-3 mb-1">
+    <svg class="animate-spin w-4 h-4 text-dae" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+    </svg>
+    <span id="progressLabel" class="text-sm text-gray-600 dark:text-gray-400">Connecting to Perkins…</span>
+    <span id="progressTimer" class="text-sm font-mono text-gray-500 ml-auto"></span>
+  </div>
+  <div class="w-full bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
+    <div id="progressBar" class="bg-dae h-1.5 rounded-full transition-all duration-500" style="width:0%"></div>
+  </div>
+</div>
+
+<script>
+let _timerInterval = null;
+
+function _setStatus(ok) {
+  const el = document.getElementById('perkinsStatus');
+  if (ok === true) {
+    el.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800';
+    el.innerHTML = '<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3"/></svg> Online';
+  } else if (ok === false) {
+    el.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800';
+    el.innerHTML = '<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3"/></svg> Offline';
+  } else {
+    el.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700';
+    el.innerHTML = '<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3"/></svg> Testing…';
+  }
+}
+
+async function runTest() {
+  document.getElementById('runTestBtn').disabled = true;
+  document.getElementById('btnLabel').textContent = 'Testing…';
+  document.getElementById('testPanel').classList.remove('hidden');
+  document.getElementById('progressWrap').classList.remove('hidden');
+  document.getElementById('testAnswer').textContent = '';
+  document.getElementById('testError').classList.add('hidden');
+  document.getElementById('metaFirstToken').textContent = '—';
+  document.getElementById('metaTotal').textContent = '—';
+  document.getElementById('metaTokens').textContent = '—';
+  document.getElementById('progressBar').style.width = '5%';
+  document.getElementById('progressLabel').textContent = 'Connecting to Perkins…';
+  _setStatus(null);
+
+  const t0 = Date.now();
+  let timerEl = document.getElementById('progressTimer');
+  clearInterval(_timerInterval);
+  _timerInterval = setInterval(() => {
+    timerEl.textContent = ((Date.now() - t0) / 1000).toFixed(1) + 's';
+  }, 200);
+
+  try {
+    const resp = await fetch('/api/perkins/health', {method: 'GET'});
+    const data = await resp.json();
+    clearInterval(_timerInterval);
+    timerEl.textContent = '';
+    document.getElementById('progressWrap').classList.add('hidden');
+
+    if (data.status === 'ok') {
+      _setStatus(true);
+      document.getElementById('metaFirstToken').textContent = data.first_token_s != null ? data.first_token_s + 's' : '—';
+      document.getElementById('metaTotal').textContent = data.total_s != null ? data.total_s + 's' : '—';
+      document.getElementById('metaTokens').textContent = data.token_count ?? '—';
+      document.getElementById('testAnswer').textContent = data.answer || '(no answer)';
+
+      // Colour-code total time
+      const totalEl = document.getElementById('metaTotal');
+      const s = data.total_s;
+      if (s <= 30) totalEl.className = 'text-2xl font-bold text-green-600';
+      else if (s <= 60) totalEl.className = 'text-2xl font-bold text-yellow-600';
+      else totalEl.className = 'text-2xl font-bold text-red-600';
+    } else {
+      _setStatus(false);
+      document.getElementById('testError').classList.remove('hidden');
+      document.getElementById('testError').textContent = 'Status: ' + data.status + (data.error ? ' — ' + data.error : '');
+      if (data.answer) document.getElementById('testAnswer').textContent = data.answer;
+    }
+  } catch (e) {
+    clearInterval(_timerInterval);
+    _setStatus(false);
+    document.getElementById('progressWrap').classList.add('hidden');
+    document.getElementById('testError').classList.remove('hidden');
+    document.getElementById('testError').textContent = 'Request failed: ' + e.message;
+  }
+
+  document.getElementById('runTestBtn').disabled = false;
+  document.getElementById('btnLabel').textContent = 'Run AI Test';
+}
+</script>
+{% endblock %}

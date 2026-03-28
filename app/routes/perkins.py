@@ -1,6 +1,7 @@
 """Perkins AI proxy — server-to-server relay so the browser never calls Perkins directly."""
 from __future__ import annotations
 
+import time
 from typing import Optional
 import httpx
 from fastapi import APIRouter, HTTPException, Request
@@ -83,3 +84,84 @@ async def proxy_stream(body: PerkinsQuery, request: Request):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get("/health")
+async def perkins_health(request: Request):
+    """Test Perkins AI end-to-end: connectivity + first-token latency + full response time.
+    Admin only. Returns JSON with status, timings, and the test answer.
+    """
+    import json as _json
+
+    if not request.session.get("user"):
+        raise HTTPException(status_code=401, detail="Login required")
+    user_info = request.session.get("user", {})
+    if not user_info.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    if not PERKINS_URL:
+        return {"status": "unconfigured", "detail": "PERKINS_URL not set"}
+
+    result: dict = {
+        "perkins_url": PERKINS_URL,
+        "status": "unknown",
+        "connect_ok": False,
+        "first_token_s": None,
+        "total_s": None,
+        "token_count": 0,
+        "answer": "",
+        "error": None,
+    }
+
+    t_start = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream(
+                "POST",
+                f"{PERKINS_URL}/api/service/stream",
+                json={"query": "What is an airworthiness directive? Answer in one sentence.",
+                      "context": "", "dataset_id": None},
+                headers=_headers(),
+            ) as resp:
+                result["connect_ok"] = True
+                tokens: list[str] = []
+                async for line in resp.aiter_lines():
+                    line = line.strip()
+                    if not line.startswith("data: "):
+                        continue
+                    try:
+                        data = _json.loads(line[6:])
+                    except Exception:
+                        continue
+                    if data.get("error"):
+                        result["status"] = "error"
+                        result["error"] = data["error"]
+                        break
+                    if data.get("token"):
+                        if result["first_token_s"] is None:
+                            result["first_token_s"] = round(time.monotonic() - t_start, 1)
+                        tokens.append(data["token"])
+                        result["token_count"] += 1
+                    if data.get("done"):
+                        result["total_s"] = round(time.monotonic() - t_start, 1)
+                        result["answer"] = "".join(tokens)
+                        result["status"] = "ok"
+                        break
+
+        if result["status"] == "unknown":
+            result["status"] = "timeout_or_no_done"
+            result["total_s"] = round(time.monotonic() - t_start, 1)
+            result["answer"] = "".join(tokens) if "tokens" in dir() else ""
+
+    except httpx.ConnectError as exc:
+        result["status"] = "unreachable"
+        result["error"] = str(exc)
+    except httpx.TimeoutException:
+        result["status"] = "timeout"
+        result["total_s"] = round(time.monotonic() - t_start, 1)
+        result["error"] = "Request timed out after 120s"
+    except Exception as exc:
+        result["status"] = "error"
+        result["error"] = str(exc)
+
+    return result

@@ -421,3 +421,16 @@ async def engine_delete(
         await db.delete(eng)
         await db.commit()
     return RedirectResponse("/admin/engines", status_code=303)
+
+
+@router.get("/status", response_class=HTMLResponse)
+async def system_status(request: Request):
+    """Admin system status page — shows services and Perkins AI test."""
+    if (r := _require_login(request)):
+        return r
+    if (r := _require_admin(request)):
+        return r
+    from app.config import PERKINS_URL
+    return templates.TemplateResponse(
+        request, "admin/system_status.html", {"perkins_url": PERKINS_URL}
+    )
