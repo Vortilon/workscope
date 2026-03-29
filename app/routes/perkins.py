@@ -95,8 +95,7 @@ async def perkins_health(request: Request):
 
     if not request.session.get("user"):
         raise HTTPException(status_code=401, detail="Login required")
-    user_info = request.session.get("user", {})
-    if not user_info.get("is_admin"):
+    if request.session.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
 
     if not PERKINS_URL:
