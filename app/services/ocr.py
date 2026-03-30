@@ -106,7 +106,7 @@ def _docai_configured() -> bool:
 
 # ── Tier 1a: pdfplumber (native PDF) ──────────────────────────────────────────
 
-def _extract_tier1_pdfplumber(path: Path) -> OcrResult:
+def _extract_tier1_pdfplumber(path: Path, max_pages: int = 80) -> OcrResult:
     """Extract tables from a native PDF using pdfplumber with multi-page stitching."""
     import pdfplumber
 
@@ -117,7 +117,13 @@ def _extract_tier1_pdfplumber(path: Path) -> OcrResult:
 
     with pdfplumber.open(str(path)) as pdf:
         result.page_count = len(pdf.pages)
-        for page_num, page in enumerate(pdf.pages):
+        pages = pdf.pages[:max_pages]
+        if len(pdf.pages) > max_pages:
+            result.warnings.append(
+                f"PDF has {len(pdf.pages)} pages — processing first {max_pages}. "
+                "Use 'Retry' to process a different range."
+            )
+        for page_num, page in enumerate(pages):
             tbl = page.extract_table()
             if not tbl:
                 continue
@@ -170,7 +176,7 @@ def _extract_tier1_pdfplumber(path: Path) -> OcrResult:
 
 # ── Tier 1b: camelot (native PDF, better for complex grids) ───────────────────
 
-def _extract_tier1_camelot(path: Path) -> OcrResult:
+def _extract_tier1_camelot(path: Path, max_pages: int = 80) -> OcrResult:
     """Extract tables using camelot — better for PDFs with explicit grid lines."""
     import camelot
     import pandas as pd
@@ -179,12 +185,15 @@ def _extract_tier1_camelot(path: Path) -> OcrResult:
     all_rows: list[list[str]] = []
     header: list[str] | None = None
 
+    # Build page range string for camelot (e.g. "1-80")
+    page_range = f"1-{max_pages}"
+
     try:
         # Try lattice first (tables with visible grid lines)
-        tables = camelot.read_pdf(str(path), pages="all", flavor="lattice")
+        tables = camelot.read_pdf(str(path), pages=page_range, flavor="lattice")
         if not tables or tables.n == 0:
             # Fall back to stream (whitespace-separated columns)
-            tables = camelot.read_pdf(str(path), pages="all", flavor="stream")
+            tables = camelot.read_pdf(str(path), pages=page_range, flavor="stream")
 
         result.page_count = tables.n
 
@@ -255,7 +264,7 @@ def _preprocess_image(img_array):
     return binary
 
 
-def _extract_tier2_tesseract(path: Path) -> OcrResult:
+def _extract_tier2_tesseract(path: Path, max_pages: int = 30) -> OcrResult:
     """Extract tables from a scanned PDF using Tesseract 5 + OpenCV pre-processing."""
     import numpy as np
     import pytesseract
@@ -266,8 +275,23 @@ def _extract_tier2_tesseract(path: Path) -> OcrResult:
     header: list[str] | None = None
     low_conf: list[tuple[int, str, str, float]] = []
 
-    pages = pdf2image.convert_from_path(str(path), dpi=300)
-    result.page_count = len(pages)
+    # Count pages first without converting to avoid memory spike
+    try:
+        info = pdf2image.pdfinfo_from_path(str(path))
+        total_pages = info.get("Pages", 0)
+    except Exception:
+        total_pages = max_pages
+
+    result.page_count = total_pages
+    if total_pages > max_pages:
+        result.warnings.append(
+            f"PDF has {total_pages} pages — Tesseract OCR limited to first {max_pages} "
+            "(rendering all pages at 300 DPI would be too slow). "
+            "Consider using Google Document AI for full extraction."
+        )
+
+    pages = pdf2image.convert_from_path(str(path), dpi=300,
+                                         first_page=1, last_page=min(max_pages, total_pages or max_pages))
 
     CONF_THRESHOLD = 0.70
 
@@ -483,29 +507,73 @@ async def extract_tables_from_pdf(
             log.warning("Tier 2 requested but Tesseract not available — falling back to tier 1")
             prefer_tier = 1
 
-    log.info("PDF extraction: %s using tier %d", path.name, prefer_tier)
+    # Determine page cap based on file size (be conservative for large PDFs)
+    file_mb = path.stat().st_size / (1024 * 1024)
+    if file_mb > 20:
+        max_pages_t1 = 50
+        max_pages_t2 = 15
+    elif file_mb > 10:
+        max_pages_t1 = 60
+        max_pages_t2 = 20
+    else:
+        max_pages_t1 = 80
+        max_pages_t2 = 30
+
+    log.info("PDF extraction: %s (%.1f MB) using tier %d, max_pages t1=%d t2=%d",
+             path.name, file_mb, prefer_tier, max_pages_t1, max_pages_t2)
 
     if prefer_tier == 3:
-        result = await loop.run_in_executor(None, _extract_tier3_docai, path)
-    elif prefer_tier == 2:
-        result = await loop.run_in_executor(None, _extract_tier2_tesseract, path)
-    else:
-        # Tier 1: try camelot first (better for grids), fall back to pdfplumber
-        if _camelot_available():
-            result = await loop.run_in_executor(None, _extract_tier1_camelot, path)
-        else:
-            result = await loop.run_in_executor(None, _extract_tier1_pdfplumber, path)
+        try:
+            result = await loop.run_in_executor(None, _extract_tier3_docai, path)
+        except Exception as exc:
+            log.exception("Tier 3 failed, falling back")
+            result = OcrResult(tier="3-docai",
+                               warnings=[f"Document AI failed ({exc}) — fell back to Tesseract."])
+            if _tesseract_available():
+                r2 = await loop.run_in_executor(None, _extract_tier2_tesseract, path, max_pages_t2)
+                r2.warnings = result.warnings + r2.warnings
+                result = r2
 
-        # If tier 1 produced no rows and tesseract is available, escalate to tier 2
+    elif prefer_tier == 2:
+        try:
+            result = await loop.run_in_executor(None, _extract_tier2_tesseract, path, max_pages_t2)
+        except Exception as exc:
+            log.exception("Tier 2 failed, falling back to pdfplumber")
+            result = await loop.run_in_executor(None, _extract_tier1_pdfplumber, path, max_pages_t1)
+            result.warnings.insert(0, f"Tesseract OCR failed ({exc}) — fell back to native PDF extraction.")
+
+    else:
+        # Tier 1: try camelot first, with isolated crash handling
+        if _camelot_available():
+            try:
+                result = await loop.run_in_executor(None, _extract_tier1_camelot, path, max_pages_t1)
+            except Exception as exc:
+                log.warning("camelot failed (%s) — falling back to pdfplumber", exc)
+                result = await loop.run_in_executor(None, _extract_tier1_pdfplumber, path, max_pages_t1)
+                result.warnings.insert(0,
+                    f"camelot extraction failed ({exc}) — using pdfplumber instead.")
+        else:
+            result = await loop.run_in_executor(None, _extract_tier1_pdfplumber, path, max_pages_t1)
+
+        # Auto-escalate if no rows found
         if result.row_count == 0 and _tesseract_available():
             result.warnings.insert(0,
                 "Native PDF extraction found no tables — retrying with Tesseract OCR.")
-            result = await loop.run_in_executor(None, _extract_tier2_tesseract, path)
+            try:
+                r2 = await loop.run_in_executor(None, _extract_tier2_tesseract, path, max_pages_t2)
+                r2.warnings = result.warnings + r2.warnings
+                result = r2
+            except Exception as exc:
+                result.warnings.append(f"Tesseract also failed: {exc}")
 
-        # If still nothing and Document AI is configured, escalate to tier 3
         if result.row_count == 0 and _docai_configured():
             result.warnings.insert(0,
                 "Tesseract found no tables — retrying with Google Document AI.")
-            result = await loop.run_in_executor(None, _extract_tier3_docai, path)
+            try:
+                r3 = await loop.run_in_executor(None, _extract_tier3_docai, path)
+                r3.warnings = result.warnings + r3.warnings
+                result = r3
+            except Exception as exc:
+                result.warnings.append(f"Document AI also failed: {exc}")
 
     return result
