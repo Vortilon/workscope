@@ -1,20 +1,77 @@
 {% extends "base.html" %}
 {% block title %}Map PDF Workscope – {{ project.msn }}{% endblock %}
 {% block content %}
-<div class="mb-5">
+<div class="mb-4">
   <a href="/projects/{{ project.id }}/workscope/upload" class="text-sm text-gray-500 hover:text-dae mb-2 inline-block">← Re-upload</a>
   <h1 class="text-xl font-bold text-gray-900 dark:text-white tracking-tight">Map PDF Workscope Columns</h1>
   <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">File: <strong>{{ filename }}</strong></p>
 </div>
 
+{# ── OCR tier badge + stats ──────────────────────────────────────────────── #}
+<div class="flex flex-wrap items-center gap-3 mb-4">
+  {% set tier_colors = {
+    "1-pdfplumber": "bg-green-100 text-green-800",
+    "1-camelot":    "bg-green-100 text-green-800",
+    "2-tesseract":  "bg-blue-100 text-blue-800",
+    "3-docai":      "bg-purple-100 text-purple-800",
+    "unknown":      "bg-gray-100 text-gray-600"
+  } %}
+  {% set tier_labels = {
+    "1-pdfplumber": "Tier 1 – Native PDF (pdfplumber)",
+    "1-camelot":    "Tier 1 – Native PDF (camelot)",
+    "2-tesseract":  "Tier 2 – Scanned (Tesseract OCR)",
+    "3-docai":      "Tier 3 – Google Document AI",
+    "unknown":      "Extraction method unknown"
+  } %}
+  <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold {{ tier_colors.get(ocr_tier, 'bg-gray-100 text-gray-600') }}">
+    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3"/></svg>
+    {{ tier_labels.get(ocr_tier, ocr_tier) }}
+  </span>
+  {% if ocr_page_count %}
+  <span class="text-xs text-gray-500">{{ ocr_page_count }} page{{ 's' if ocr_page_count != 1 }} · {{ ocr_row_count }} rows extracted</span>
+  {% endif %}
+
+  {# Retry buttons #}
+  <div class="ml-auto flex gap-2">
+    {% if ocr_tier != "1-pdfplumber" and ocr_tier != "1-camelot" %}
+    <a href="?tier=1" class="text-xs px-3 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50">Retry: Native PDF</a>
+    {% endif %}
+    {% if tesseract_available and ocr_tier != "2-tesseract" %}
+    <a href="?tier=2&force_ocr=1" class="text-xs px-3 py-1 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50">Retry: Tesseract OCR</a>
+    {% endif %}
+    {% if docai_available and ocr_tier != "3-docai" %}
+    <a href="?tier=3" class="text-xs px-3 py-1 rounded-lg border border-purple-300 text-purple-700 hover:bg-purple-50">Retry: Document AI</a>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Warnings ────────────────────────────────────────────────────────────── #}
+{% for w in ocr_warnings %}
+<div class="mb-3 flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+  <svg class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+      d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+  </svg>
+  {{ w }}
+</div>
+{% endfor %}
+
+{# ── Preview table ───────────────────────────────────────────────────────── #}
 {% if preview %}
 <div class="mb-5 overflow-x-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm p-4">
-  <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Table preview (first rows)</p>
+  <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Table preview</p>
   <table class="text-[11px] text-left text-gray-600 dark:text-gray-400 border-collapse">
     {% for row in preview %}
     <tr class="{{ 'bg-dae/10 font-semibold' if loop.first else 'border-b border-gray-100 dark:border-gray-700' }}">
       {% for cell in row %}
-      <td class="px-2 py-1 border border-gray-200 dark:border-gray-600 max-w-[120px] truncate" title="{{ cell }}">{{ cell or '—' }}</td>
+      {% set ri = loop.parent.loop.index0 - 1 %}
+      {% set ci = loop.index0 %}
+      {% set is_low_conf = (ri, ci) in low_conf_coords %}
+      <td class="px-2 py-1 border border-gray-200 dark:border-gray-600 max-w-[130px] truncate
+                 {{ 'bg-amber-100 dark:bg-amber-900/30 text-amber-800' if is_low_conf else '' }}"
+          title="{{ 'Low OCR confidence — verify manually' if is_low_conf else cell }}">
+        {{ cell or '—' }}{% if is_low_conf %} <span class="text-amber-500 text-[9px]">⚠</span>{% endif %}
+      </td>
       {% endfor %}
     </tr>
     {% endfor %}
@@ -22,25 +79,41 @@
 </div>
 {% else %}
 <div class="mb-5 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
-  No tables could be extracted from the first pages. The PDF may be image-only (no embedded text). Try an Excel format or a text-layer PDF.
+  <strong>No tables found.</strong>
+  {% if tesseract_available %}
+    The PDF may be image-only. Try <a href="?tier=2&force_ocr=1" class="underline font-semibold">Tesseract OCR</a>.
+  {% elif docai_available %}
+    The PDF may be image-only. Try <a href="?tier=3" class="underline font-semibold">Google Document AI</a>.
+  {% else %}
+    The PDF may be image-only (no embedded text). Try uploading as Excel, or contact your administrator to enable OCR support.
+  {% endif %}
 </div>
 {% endif %}
 
-<form method="post" action="/projects/{{ project.id }}/workscope/pdf-run" class="space-y-4 max-w-xl">
+{# ── Mapping form ────────────────────────────────────────────────────────── #}
+<form method="post" action="/projects/{{ project.id }}/workscope/pdf-run" class="space-y-4 max-w-2xl">
   <div class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 space-y-3">
     <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Column Mapping</h2>
     {% for fk in field_keys %}
     {% set fl = field_labels[fk] %}
     {% set guessed_idx = guessed.get(fk) %}
-    <div class="grid grid-cols-2 gap-3 items-center pb-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
-      <label class="text-sm font-medium text-gray-900 dark:text-white">{{ fl }}</label>
-      <select name="col_{{ fk }}"
-              class="rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-        <option value="">— Not mapped —</option>
-        {% for ci in col_infos %}
-        <option value="{{ ci.idx }}" {{ 'selected' if guessed_idx == ci.idx else '' }}>{{ ci.label }}</option>
-        {% endfor %}
-      </select>
+    <div class="grid grid-cols-2 gap-3 items-start pb-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+      <label class="text-sm font-medium text-gray-900 dark:text-white pt-1">{{ fl }}</label>
+      <div>
+        <select name="col_{{ fk }}"
+                class="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm focus:border-dae dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                onchange="showExample(this, '{{ fk }}')">
+          <option value="">— Not mapped —</option>
+          {% for ci in col_infos %}
+          <option value="{{ ci.idx }}"
+                  data-example="{{ ci.example }}"
+                  {{ 'selected' if guessed_idx == ci.idx else '' }}>{{ ci.label }}</option>
+          {% endfor %}
+        </select>
+        <p id="ex_{{ fk }}" class="text-[11px] text-gray-400 mt-0.5 truncate hidden">
+          Example: <span class="font-mono text-gray-600 dark:text-gray-300"></span>
+        </p>
+      </div>
     </div>
     {% endfor %}
   </div>
@@ -49,4 +122,23 @@
     Import from PDF →
   </button>
 </form>
+
+<script>
+function showExample(sel, fk) {
+  const opt = sel.options[sel.selectedIndex];
+  const ex = opt.dataset.example || "";
+  const p = document.getElementById("ex_" + fk);
+  if (ex) {
+    p.querySelector("span").textContent = ex;
+    p.classList.remove("hidden");
+  } else {
+    p.classList.add("hidden");
+  }
+}
+// Show examples for pre-selected (guessed) columns on load
+document.querySelectorAll("select[name^='col_']").forEach(sel => {
+  const fk = sel.name.replace("col_", "");
+  if (sel.value) showExample(sel, fk);
+});
+</script>
 {% endblock %}

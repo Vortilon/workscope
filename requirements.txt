@@ -17,10 +17,14 @@ openpyxl
 xlrd>=2.0
 pypdf>=3.0
 pdfplumber
+camelot-py[cv]
 Pillow
-# OCR (optional; install tesseract-ocr on system)
-# pdf2image
-# pytesseract
+# Tier 2 — Tesseract OCR (requires tesseract-ocr system package, installed in Dockerfile)
+pdf2image
+pytesseract
+opencv-python-headless
+# Tier 3 — Google Document AI (credentials required; safe to leave installed even if unused)
+google-cloud-documentai
 
 # HTTP / AI
 httpx

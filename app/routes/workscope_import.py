@@ -143,7 +143,7 @@ async def ws_upload_post(
     path.write_bytes(await file.read())
 
     if ext == ".pdf":
-        # PDF path → redirect to PDF mapping (simplified: extract text tables)
+        # PDF path → run tiered OCR extraction, then go to mapping
         request.session["ws_import"] = {
             "project_id": project_id,
             "token": token,
@@ -392,26 +392,38 @@ async def ws_pdf_mapping_get(request: Request, project_id: int, db: AsyncSession
     token = sess["token"]
     path = IMPORT_TEMP_DIR / f"ws_{token}.pdf"
 
-    # Extract tables from PDF using pdfplumber
-    tables: list[list[list[str]]] = []
-    try:
-        import pdfplumber
-        with pdfplumber.open(str(path)) as pdf:
-            for page in pdf.pages[:5]:  # preview first 5 pages
-                tbl = page.extract_table()
-                if tbl:
-                    tables.append([[str(c or "").strip() for c in r] for r in tbl[:6]])
-    except Exception as exc:
-        tables = []
+    # ── Tiered OCR extraction ────────────────────────────────────────────────
+    from app.services.ocr import extract_tables_from_pdf, OcrResult
 
-    preview_rows = tables[0] if tables else []
-    header_row = 0
-    header = preview_rows[header_row] if preview_rows else []
-    col_infos = [
-        {"idx": ci, "letter": _col_letter(ci), "caption": h, "label": f"{_col_letter(ci)} – {h}" if h else f"{_col_letter(ci)}"}
-        for ci, h in enumerate(header)
-    ]
+    # Honour user-requested tier override (e.g. from a "retry with OCR" button)
+    prefer_tier_param = request.query_params.get("tier")
+    prefer_tier = int(prefer_tier_param) if prefer_tier_param in ("1", "2", "3") else None
+    force_ocr = request.query_params.get("force_ocr") == "1"
+
+    ocr_result: OcrResult = await extract_tables_from_pdf(
+        path, prefer_tier=prefer_tier, force_ocr=force_ocr
+    )
+
+    preview_rows = ([ocr_result.header] + ocr_result.raw_rows[:8]) if ocr_result.header else ocr_result.raw_rows[:9]
+    header = ocr_result.header or (ocr_result.raw_rows[0] if ocr_result.raw_rows else [])
+
+    # Build col_infos with example values (row 5 below header, or first available)
+    sample_row = ocr_result.raw_rows[4] if len(ocr_result.raw_rows) > 4 else (ocr_result.raw_rows[0] if ocr_result.raw_rows else [])
+    col_infos = []
+    for ci, h in enumerate(header):
+        example = sample_row[ci].strip() if ci < len(sample_row) else ""
+        col_infos.append({
+            "idx": ci,
+            "letter": _col_letter(ci),
+            "caption": h,
+            "label": f"{_col_letter(ci)} – {h}" if h else f"{_col_letter(ci)}",
+            "example": example,
+        })
+
     guessed = _guess_mapping(header)
+
+    # Low-confidence cell coordinates for highlighting in the preview
+    low_conf_coords = {(r, c) for r, c, _, _ in ocr_result.low_confidence_cells}
 
     return templates.TemplateResponse(request, "workscope_import/pdf_mapping.html", {
         "project": project,
@@ -419,8 +431,15 @@ async def ws_pdf_mapping_get(request: Request, project_id: int, db: AsyncSession
         "field_keys": WORKSCOPE_FIELD_KEYS,
         "field_labels": WORKSCOPE_FIELD_LABELS,
         "guessed": guessed,
-        "preview": preview_rows[:6],
+        "preview": preview_rows[:9],
         "filename": sess.get("filename", ""),
+        "ocr_tier": ocr_result.tier,
+        "ocr_warnings": ocr_result.warnings,
+        "ocr_page_count": ocr_result.page_count,
+        "ocr_row_count": ocr_result.row_count,
+        "low_conf_coords": low_conf_coords,
+        "docai_available": __import__("app.services.ocr", fromlist=["_docai_configured"])._docai_configured(),
+        "tesseract_available": __import__("app.services.ocr", fromlist=["_tesseract_available"])._tesseract_available(),
     })
 
 
